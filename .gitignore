@@ -8,9 +8,9 @@ build/
 venv/
 
 # Generated outputs
-parking_lot.svg
-parking_lot.dxf
-parking_config.json
+stonegrid.svg
+stonegrid.dxf
+config.json
 
 # IDE / tools
 .idea/

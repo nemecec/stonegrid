@@ -5,7 +5,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY parking_generator.py app.py parking_config.sample.json ./
+COPY generator.py app.py config.sample.json ./
 
 EXPOSE 8080
 

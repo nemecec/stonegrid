@@ -1,7 +1,7 @@
 __pycache__
 *.pyc
-*.svg
-*.dxf
+stonegrid.svg
+stonegrid.dxf
 .git
 .github
 .idea

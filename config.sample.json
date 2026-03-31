@@ -1,15 +1,15 @@
 {
   "pattern": "triangles",
   "side": 200,
-  "space_width": 2700,
-  "space_height": 5000,
+  "zone_width": 2700,
+  "zone_height": 5000,
   "seed": 42,
   "colors": {
     "light": {"rgb": [200, 200, 200], "layer": "STONE_LIGHT",  "aci": 9},
     "middle": {"rgb": [140, 140, 140], "layer": "STONE_MIDDLE", "aci": 8},
     "dark": {"rgb": [80, 80, 80],    "layer": "STONE_DARK",   "aci": 251}
   },
-  "lots": [
+  "zones": [
     {
       "bottom": {"light": 100, "middle": 0, "dark": 0},
       "top":    {"light": 20, "middle": 50, "dark": 30}

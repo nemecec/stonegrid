@@ -1,22 +1,22 @@
-"""Tests for the parking lot stone pattern generator."""
+"""Tests for the stone pattern generator."""
 
 import math
 
-import parking_generator as gen
+import generator as gen
 
 
 SAMPLE_CONFIG = {
     "pattern": "triangles",
     "side": 200,
-    "space_width": 2700,
-    "space_height": 5000,
+    "zone_width": 2700,
+    "zone_height": 5000,
     "seed": 42,
     "colors": {
         "light": {"rgb": [200, 200, 200], "layer": "STONE_LIGHT", "aci": 9},
         "middle": {"rgb": [140, 140, 140], "layer": "STONE_MIDDLE", "aci": 8},
         "dark": {"rgb": [80, 80, 80], "layer": "STONE_DARK", "aci": 251},
     },
-    "lots": [
+    "zones": [
         {
             "bottom": {"light": 100, "middle": 0, "dark": 0},
             "top": {"light": 20, "middle": 50, "dark": 30},
@@ -28,14 +28,14 @@ RECT_CONFIG = {
     "pattern": "rectangles",
     "side": 200,
     "side2": 100,
-    "space_width": 2700,
-    "space_height": 5000,
+    "zone_width": 2700,
+    "zone_height": 5000,
     "seed": 42,
     "colors": {
         "light": {"rgb": [200, 200, 200], "layer": "STONE_LIGHT", "aci": 9},
         "dark": {"rgb": [80, 80, 80], "layer": "STONE_DARK", "aci": 251},
     },
-    "lots": [{"light": 60, "dark": 40}],
+    "zones": [{"light": 60, "dark": 40}],
 }
 
 
@@ -43,8 +43,8 @@ class TestParseConfig:
     def test_defaults_applied(self):
         settings = gen.parse_config({})
         assert settings["side"] == 200
-        assert settings["space_width"] == 2700
-        assert settings["space_height"] == 5000
+        assert settings["zone_width"] == 2700
+        assert settings["zone_height"] == 5000
         assert settings["seed"] == 42
         assert settings["pattern"] == "triangles"
 
@@ -76,49 +76,49 @@ class TestParseConfig:
             "colors": {
                 "red": {"rgb": [255, 0, 0], "layer": "RED", "aci": 1},
             },
-            "lots": [],
+            "zones": [],
         }
         settings = gen.parse_config(cfg)
         assert "red" in settings["colors"]
         assert settings["colors"]["red"]["rgb"] == (255, 0, 0)
 
-    def test_lots_passed_through(self):
-        cfg = {"lots": [{"light": 50, "dark": 50}]}
+    def test_zones_passed_through(self):
+        cfg = {"zones": [{"light": 50, "dark": 50}]}
         settings = gen.parse_config(cfg)
-        assert len(settings["lots"]) == 1
+        assert len(settings["zones"]) == 1
 
 
 class TestValidateConfig:
-    def test_no_lots_is_error(self):
-        settings = gen.parse_config({"lots": []})
+    def test_no_zones_is_error(self):
+        settings = gen.parse_config({"zones": []})
         errors = gen.validate_config(settings)
-        assert any("No lots" in e for e in errors)
+        assert any("No zones" in e for e in errors)
 
-    def test_valid_flat_lot(self):
-        cfg = {"lots": [{"light": 60, "middle": 30, "dark": 10}]}
+    def test_valid_flat_zone(self):
+        cfg = {"zones": [{"light": 60, "middle": 30, "dark": 10}]}
         settings = gen.parse_config(cfg)
         errors = gen.validate_config(settings)
         assert errors == []
 
-    def test_valid_gradient_lot(self):
+    def test_valid_gradient_zone(self):
         settings = gen.parse_config(SAMPLE_CONFIG)
         errors = gen.validate_config(settings)
         assert errors == []
 
     def test_proportions_not_100(self):
-        cfg = {"lots": [{"light": 50, "middle": 20, "dark": 10}]}
+        cfg = {"zones": [{"light": 50, "middle": 20, "dark": 10}]}
         settings = gen.parse_config(cfg)
         errors = gen.validate_config(settings)
         assert any("sum to 80" in e for e in errors)
 
     def test_unknown_color(self):
-        cfg = {"lots": [{"light": 50, "unknown_color": 50}]}
+        cfg = {"zones": [{"light": 50, "unknown_color": 50}]}
         settings = gen.parse_config(cfg)
         errors = gen.validate_config(settings)
         assert any("unknown color" in e for e in errors)
 
     def test_unknown_pattern(self):
-        settings = gen.parse_config({"pattern": "hexagons", "lots": [{"light": 100}]})
+        settings = gen.parse_config({"pattern": "hexagons", "zones": [{"light": 100}]})
         errors = gen.validate_config(settings)
         assert any("Unknown pattern" in e for e in errors)
 
@@ -126,9 +126,9 @@ class TestValidateConfig:
 class TestGenerateTriangles:
     def test_generates_triangles(self):
         settings = gen.parse_config(SAMPLE_CONFIG)
-        shapes, boundaries, num_spaces = gen.generate(settings)
+        shapes, boundaries, num_zones = gen.generate(settings)
         assert len(shapes) > 0
-        assert num_spaces == 1
+        assert num_zones == 1
 
     def test_triangle_has_three_vertices(self):
         settings = gen.parse_config(SAMPLE_CONFIG)
@@ -143,21 +143,21 @@ class TestGenerateTriangles:
         for _, color in shapes:
             assert color in valid_colors
 
-    def test_boundaries_for_single_lot(self):
+    def test_boundaries_for_single_zone(self):
         settings = gen.parse_config(SAMPLE_CONFIG)
         _, boundaries, _ = gen.generate(settings)
         assert len(boundaries) == 4
 
-    def test_boundaries_for_multiple_lots(self):
+    def test_boundaries_for_multiple_zones(self):
         cfg = dict(SAMPLE_CONFIG)
-        cfg["lots"] = [
+        cfg["zones"] = [
             {"light": 100, "middle": 0, "dark": 0},
             {"light": 0, "middle": 100, "dark": 0},
             {"light": 0, "middle": 0, "dark": 100},
         ]
         settings = gen.parse_config(cfg)
-        _, boundaries, num_spaces = gen.generate(settings)
-        assert num_spaces == 3
+        _, boundaries, num_zones = gen.generate(settings)
+        assert num_zones == 3
         assert len(boundaries) == 6
 
     def test_deterministic_with_same_seed(self):
@@ -170,9 +170,9 @@ class TestGenerateTriangles:
 class TestGenerateRectangles:
     def test_generates_rectangles(self):
         settings = gen.parse_config(RECT_CONFIG)
-        shapes, boundaries, num_spaces = gen.generate(settings)
+        shapes, boundaries, num_zones = gen.generate(settings)
         assert len(shapes) > 0
-        assert num_spaces == 1
+        assert num_zones == 1
 
     def test_rectangle_has_four_vertices(self):
         settings = gen.parse_config(RECT_CONFIG)
@@ -181,7 +181,7 @@ class TestGenerateRectangles:
         assert len(verts) == 4
 
     def test_square_when_no_side2(self):
-        cfg = {"pattern": "rectangles", "side": 200, "lots": [{"light": 100}]}
+        cfg = {"pattern": "rectangles", "side": 200, "zones": [{"light": 100}]}
         settings = gen.parse_config(cfg)
         shapes, _, _ = gen.generate(settings)
         verts, _ = shapes[0]
@@ -215,22 +215,22 @@ class TestGenerateRectangles:
 class TestRenderSvg:
     def test_valid_svg(self):
         settings = gen.parse_config(SAMPLE_CONFIG)
-        shapes, boundaries, num_spaces = gen.generate(settings)
-        svg = gen.render_svg(settings, shapes, boundaries, num_spaces)
+        shapes, boundaries, num_zones = gen.generate(settings)
+        svg = gen.render_svg(settings, shapes, boundaries, num_zones)
         assert svg.startswith("<?xml")
         assert "<svg" in svg
         assert "</svg>" in svg
 
     def test_contains_polygons(self):
         settings = gen.parse_config(SAMPLE_CONFIG)
-        shapes, boundaries, num_spaces = gen.generate(settings)
-        svg = gen.render_svg(settings, shapes, boundaries, num_spaces)
+        shapes, boundaries, num_zones = gen.generate(settings)
+        svg = gen.render_svg(settings, shapes, boundaries, num_zones)
         assert "<polygon" in svg
 
     def test_rectangles_render_svg(self):
         settings = gen.parse_config(RECT_CONFIG)
-        shapes, boundaries, num_spaces = gen.generate(settings)
-        svg = gen.render_svg(settings, shapes, boundaries, num_spaces)
+        shapes, boundaries, num_zones = gen.generate(settings)
+        svg = gen.render_svg(settings, shapes, boundaries, num_zones)
         assert "<polygon" in svg
         assert "</svg>" in svg
 
@@ -238,15 +238,15 @@ class TestRenderSvg:
 class TestRenderDxf:
     def test_produces_bytes(self):
         settings = gen.parse_config(SAMPLE_CONFIG)
-        shapes, boundaries, num_spaces = gen.generate(settings)
-        dxf_bytes = gen.render_dxf_bytes(settings, shapes, boundaries, num_spaces)
+        shapes, boundaries, num_zones = gen.generate(settings)
+        dxf_bytes = gen.render_dxf_bytes(settings, shapes, boundaries, num_zones)
         assert isinstance(dxf_bytes, bytes)
         assert len(dxf_bytes) > 0
 
     def test_rectangles_produce_bytes(self):
         settings = gen.parse_config(RECT_CONFIG)
-        shapes, boundaries, num_spaces = gen.generate(settings)
-        dxf_bytes = gen.render_dxf_bytes(settings, shapes, boundaries, num_spaces)
+        shapes, boundaries, num_zones = gen.generate(settings)
+        dxf_bytes = gen.render_dxf_bytes(settings, shapes, boundaries, num_zones)
         assert isinstance(dxf_bytes, bytes)
         assert len(dxf_bytes) > 0
 
@@ -260,7 +260,7 @@ class TestApp:
     def test_index_page(self):
         resp = self.client.get("/")
         assert resp.status_code == 200
-        assert b"Parking Lot" in resp.data
+        assert b"Stonegrid" in resp.data
 
     def test_index_has_visual_editor_tab(self):
         resp = self.client.get("/")
@@ -282,16 +282,16 @@ class TestApp:
         assert b"ve-colors" in resp.data
         assert b"Add color" in resp.data
 
-    def test_index_has_lot_editor(self):
+    def test_index_has_zone_editor(self):
         resp = self.client.get("/")
-        assert b"ve-lots" in resp.data
-        assert b"Add lot" in resp.data
+        assert b"ve-zones" in resp.data
+        assert b"Add zone" in resp.data
 
     def test_index_has_dimension_fields(self):
         resp = self.client.get("/")
         assert b"ve-side" in resp.data
-        assert b"ve-space_width" in resp.data
-        assert b"ve-space_height" in resp.data
+        assert b"ve-zone_width" in resp.data
+        assert b"ve-zone_height" in resp.data
         assert b"ve-seed" in resp.data
 
     def test_index_has_pattern_selector(self):
@@ -331,7 +331,7 @@ class TestApp:
     def test_preview_invalid_config(self):
         resp = self.client.post(
             "/api/preview",
-            json={"lots": []},
+            json={"zones": []},
             content_type="application/json",
         )
         data = resp.get_json()
@@ -349,7 +349,7 @@ class TestApp:
     def test_dxf_invalid_config(self):
         resp = self.client.post(
             "/api/dxf",
-            json={"lots": [{"light": 50, "dark": 10}]},
+            json={"zones": [{"light": 50, "dark": 10}]},
             content_type="application/json",
         )
         assert resp.status_code == 400

@@ -1,10 +1,10 @@
-"""Flask web app for the parking lot stone pattern generator."""
+"""Flask web app for the stone pattern generator."""
 
 import io
 import os
 
 from flask import Flask, request, jsonify, send_file, render_template_string
-import parking_generator as gen
+import generator as gen
 
 app = Flask(__name__)
 
@@ -13,7 +13,7 @@ HTML = r"""<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Parking Lot Stone Pattern Generator</title>
+<title>Stonegrid — Stone Pattern Generator</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -66,17 +66,17 @@ HTML = r"""<!DOCTYPE html>
   .btn-remove { background: #e74c3c; color: #fff; }
   .btn-remove:hover { background: #c0392b; }
 
-  /* Lot list */
-  .lot-item { padding: 10px; background: #fff; border: 1px solid #ddd; border-radius: 6px;
+  /* Zone list */
+  .zone-item { padding: 10px; background: #fff; border: 1px solid #ddd; border-radius: 6px;
               margin-bottom: 8px; transition: border-color 0.2s, box-shadow 0.2s; }
-  .lot-item.has-error { border-color: #e74c3c; box-shadow: 0 0 0 2px rgba(231,76,60,0.15); }
-  .lot-error { font-size: 11px; color: #e74c3c; margin-top: 4px; }
-  .lot-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-  .lot-header span { font-weight: 600; font-size: 13px; }
-  .lot-toggle { display: flex; gap: 4px; align-items: center; font-size: 12px; color: #666; }
-  .lot-toggle input { cursor: pointer; }
-  .lot-proportions { display: flex; flex-direction: column; gap: 6px; }
-  .lot-gradient-label { font-size: 11px; color: #888; font-weight: 600; margin-top: 4px; }
+  .zone-item.has-error { border-color: #e74c3c; box-shadow: 0 0 0 2px rgba(231,76,60,0.15); }
+  .zone-error { font-size: 11px; color: #e74c3c; margin-top: 4px; }
+  .zone-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .zone-header span { font-weight: 600; font-size: 13px; }
+  .zone-toggle { display: flex; gap: 4px; align-items: center; font-size: 12px; color: #666; }
+  .zone-toggle input { cursor: pointer; }
+  .zone-proportions { display: flex; flex-direction: column; gap: 6px; }
+  .zone-gradient-label { font-size: 11px; color: #888; font-weight: 600; margin-top: 4px; }
   .prop-row { display: flex; align-items: center; gap: 6px; }
   .prop-swatch { width: 16px; height: 16px; border-radius: 3px; border: 1px solid #ccc; flex-shrink: 0; }
   .prop-name { font-size: 12px; flex: 1; }
@@ -137,8 +137,8 @@ HTML = r"""<!DOCTYPE html>
 </head>
 <body>
 <div class="container">
-  <h1>Parking Lot Stone Pattern Generator</h1>
-  <p class="subtitle">Define color proportions per lot, preview the pattern, download as DXF.</p>
+  <h1>Stonegrid</h1>
+  <p class="subtitle">Define color proportions per zone, preview the stone pattern, download as DXF.</p>
 
   <div class="layout">
     <div class="editor-panel">
@@ -175,15 +175,15 @@ HTML = r"""<!DOCTYPE html>
           </div>
 
           <div class="ve-section">
-            <h3>Space</h3>
+            <h3>Zone</h3>
             <div class="ve-grid">
               <div class="ve-field">
-                <label>Space width (mm)</label>
-                <input type="number" id="ve-space_width" min="100" step="100">
+                <label>Zone width (mm)</label>
+                <input type="number" id="ve-zone_width" min="100" step="100">
               </div>
               <div class="ve-field">
-                <label>Space height (mm)</label>
-                <input type="number" id="ve-space_height" min="100" step="100">
+                <label>Zone height (mm)</label>
+                <input type="number" id="ve-zone_height" min="100" step="100">
               </div>
             </div>
           </div>
@@ -195,9 +195,9 @@ HTML = r"""<!DOCTYPE html>
           </div>
 
           <div class="ve-section">
-            <h3>Lots</h3>
-            <div id="ve-lots"></div>
-            <button class="btn-sm btn-add" onclick="addLot()">+ Add lot</button>
+            <h3>Zones</h3>
+            <div id="ve-zones"></div>
+            <button class="btn-sm btn-add" onclick="addZone()">+ Add zone</button>
           </div>
         </div>
       </div>
@@ -274,13 +274,13 @@ function jsonToVisual() {
   document.getElementById('ve-pattern').value = cfg.pattern || 'triangles';
   document.getElementById('ve-side').value = cfg.side || 200;
   document.getElementById('ve-side2').value = cfg.side2 || '';
-  document.getElementById('ve-space_width').value = cfg.space_width || 2700;
-  document.getElementById('ve-space_height').value = cfg.space_height || 5000;
+  document.getElementById('ve-zone_width').value = cfg.zone_width || 2700;
+  document.getElementById('ve-zone_height').value = cfg.zone_height || 5000;
   document.getElementById('ve-seed').value = cfg.seed || 42;
   onPatternChange();
   renderColors(cfg.colors || {});
-  renderLots(cfg.lots || [], cfg.colors || {});
-  validateAllLots();
+  renderZones(cfg.zones || [], cfg.colors || {});
+  validateAllZones();
 }
 
 function onPatternChange() {
@@ -308,11 +308,11 @@ function buildConfigFromVisual() {
   const cfg = {
     pattern: pattern,
     side: parseInt(document.getElementById('ve-side').value, 10) || 200,
-    space_width: parseInt(document.getElementById('ve-space_width').value, 10) || 2700,
-    space_height: parseInt(document.getElementById('ve-space_height').value, 10) || 5000,
+    zone_width: parseInt(document.getElementById('ve-zone_width').value, 10) || 2700,
+    zone_height: parseInt(document.getElementById('ve-zone_height').value, 10) || 5000,
     seed: (() => { const v = parseInt(document.getElementById('ve-seed').value, 10); return isNaN(v) ? 42 : v; })(),
     colors: {},
-    lots: []
+    zones: []
   };
   if (side2Raw !== '') {
     const side2 = parseInt(side2Raw, 10);
@@ -331,8 +331,8 @@ function buildConfigFromVisual() {
   });
 
   // Lots
-  document.querySelectorAll('.lot-item').forEach(el => {
-    const isGradient = el.querySelector('.lot-toggle input').checked;
+  document.querySelectorAll('.zone-item').forEach(el => {
+    const isGradient = el.querySelector('.zone-toggle input').checked;
     if (isGradient) {
       const bottom = {};
       const top = {};
@@ -342,13 +342,13 @@ function buildConfigFromVisual() {
       el.querySelectorAll('.prop-row[data-section="top"]').forEach(row => {
         top[row.dataset.color] = Number(row.querySelector('input[type="range"]').value);
       });
-      cfg.lots.push({ bottom, top });
+      cfg.zones.push({ bottom, top });
     } else {
       const props = {};
       el.querySelectorAll('.prop-row[data-section="flat"]').forEach(row => {
         props[row.dataset.color] = Number(row.querySelector('input[type="range"]').value);
       });
-      cfg.lots.push(props);
+      cfg.zones.push(props);
     }
   });
 
@@ -405,7 +405,7 @@ function addColor() {
   container.appendChild(el);
 }
 
-// --- Render lot list ---
+// --- Render zone list ---
 function getCurrentColors() {
   const colors = {};
   document.querySelectorAll('.color-item').forEach(el => {
@@ -436,72 +436,72 @@ function makePropRows(colorMap, values, section) {
   return html;
 }
 
-function renderLots(lots, colors) {
-  const container = document.getElementById('ve-lots');
+function renderZones(zones, colors) {
+  const container = document.getElementById('ve-zones');
   container.innerHTML = '';
-  lots.forEach((lot, i) => {
-    const isGrad = lot.bottom !== undefined && lot.top !== undefined;
-    addLotElement(container, i, isGrad, lot, colors);
+  zones.forEach((zone, i) => {
+    const isGrad = zone.bottom !== undefined && zone.top !== undefined;
+    addZoneElement(container, i, isGrad, zone, colors);
   });
 }
 
-function addLotElement(container, index, isGradient, lot, colors) {
+function addZoneElement(container, index, isGradient, zone, colors) {
   const el = document.createElement('div');
-  el.className = 'lot-item';
+  el.className = 'zone-item';
 
-  const bottomVals = isGradient ? (lot.bottom || {}) : (lot || {});
-  const topVals = isGradient ? (lot.top || {}) : (lot || {});
+  const bottomVals = isGradient ? (zone.bottom || {}) : (zone || {});
+  const topVals = isGradient ? (zone.top || {}) : (zone || {});
 
   let propsHtml = '';
   if (isGradient) {
     propsHtml =
-      '<div class="lot-gradient-label">Bottom edge</div>' +
+      '<div class="zone-gradient-label">Bottom edge</div>' +
       makePropRows(colors, bottomVals, 'bottom') +
-      '<div class="lot-gradient-label">Top edge</div>' +
+      '<div class="zone-gradient-label">Top edge</div>' +
       makePropRows(colors, topVals, 'top');
   } else {
     propsHtml = makePropRows(colors, bottomVals, 'flat');
   }
 
   el.innerHTML =
-    '<div class="lot-header">' +
-      '<span>Lot ' + (index + 1) + '</span>' +
+    '<div class="zone-header">' +
+      '<span>Zone ' + (index + 1) + '</span>' +
       '<div style="display:flex;gap:8px;align-items:center">' +
-        '<label class="lot-toggle"><input type="checkbox"' + (isGradient ? ' checked' : '') +
-          ' onchange="toggleLotGradient(this)"> Gradient</label>' +
-        '<button class="btn-sm btn-remove" onclick="this.closest(\'.lot-item\').remove();renumberLots()">&#x2715;</button>' +
+        '<label class="zone-toggle"><input type="checkbox"' + (isGradient ? ' checked' : '') +
+          ' onchange="toggleZoneGradient(this)"> Gradient</label>' +
+        '<button class="btn-sm btn-remove" onclick="this.closest(\'.zone-item\').remove();renumberZones()">&#x2715;</button>' +
       '</div>' +
     '</div>' +
-    '<div class="lot-proportions">' + propsHtml + '</div>';
+    '<div class="zone-proportions">' + propsHtml + '</div>';
 
   container.appendChild(el);
 }
 
-function toggleLotGradient(checkbox) {
-  const lotEl = checkbox.closest('.lot-item');
+function toggleZoneGradient(checkbox) {
+  const zoneEl = checkbox.closest('.zone-item');
   const colors = getCurrentColors();
   const isGrad = checkbox.checked;
 
   // Collect current values
   const currentVals = {};
-  lotEl.querySelectorAll('.prop-row').forEach(row => {
+  zoneEl.querySelectorAll('.prop-row').forEach(row => {
     currentVals[row.dataset.color] = Number(row.querySelector('input[type="range"]').value);
   });
 
-  const propsDiv = lotEl.querySelector('.lot-proportions');
+  const propsDiv = zoneEl.querySelector('.zone-proportions');
   if (isGrad) {
     propsDiv.innerHTML =
-      '<div class="lot-gradient-label">Bottom edge</div>' +
+      '<div class="zone-gradient-label">Bottom edge</div>' +
       makePropRows(colors, currentVals, 'bottom') +
-      '<div class="lot-gradient-label">Top edge</div>' +
+      '<div class="zone-gradient-label">Top edge</div>' +
       makePropRows(colors, currentVals, 'top');
   } else {
     propsDiv.innerHTML = makePropRows(colors, currentVals, 'flat');
   }
 }
 
-function addLot() {
-  const container = document.getElementById('ve-lots');
+function addZone() {
+  const container = document.getElementById('ve-zones');
   const colors = getCurrentColors();
   const index = container.children.length;
   const defaultVals = {};
@@ -510,12 +510,12 @@ function addLot() {
     defaultVals[keys[0]] = 100;
     for (let i = 1; i < keys.length; i++) defaultVals[keys[i]] = 0;
   }
-  addLotElement(container, index, false, defaultVals, colors);
+  addZoneElement(container, index, false, defaultVals, colors);
 }
 
 function syncPropFromSlider(slider) {
   slider.parentElement.querySelector('.prop-val').value = slider.value;
-  validateLot(slider.closest('.lot-item'));
+  validateZone(slider.closest('.zone-item'));
 }
 
 function syncPropFromInput(input) {
@@ -524,17 +524,17 @@ function syncPropFromInput(input) {
   if (v < 0) v = 0;
   if (v > 100) v = 100;
   input.parentElement.querySelector('input[type="range"]').value = v;
-  validateLot(input.closest('.lot-item'));
+  validateZone(input.closest('.zone-item'));
 }
 
-function validateLot(lotEl) {
-  if (!lotEl) return;
-  const isGrad = lotEl.querySelector('.lot-toggle input').checked;
+function validateZone(zoneEl) {
+  if (!zoneEl) return;
+  const isGrad = zoneEl.querySelector('.zone-toggle input').checked;
   const sections = isGrad ? ['bottom', 'top'] : ['flat'];
   let errors = [];
   sections.forEach(section => {
     let total = 0;
-    lotEl.querySelectorAll('.prop-row[data-section="' + section + '"]').forEach(row => {
+    zoneEl.querySelectorAll('.prop-row[data-section="' + section + '"]').forEach(row => {
       total += Number(row.querySelector('input[type="range"]').value);
     });
     if (Math.abs(total - 100) > 0.5) {
@@ -542,13 +542,13 @@ function validateLot(lotEl) {
       errors.push(label + 'proportions sum to ' + total + '%, expected 100%');
     }
   });
-  lotEl.classList.toggle('has-error', errors.length > 0);
-  let errDiv = lotEl.querySelector('.lot-error');
+  zoneEl.classList.toggle('has-error', errors.length > 0);
+  let errDiv = zoneEl.querySelector('.zone-error');
   if (errors.length > 0) {
     if (!errDiv) {
       errDiv = document.createElement('div');
-      errDiv.className = 'lot-error';
-      lotEl.appendChild(errDiv);
+      errDiv.className = 'zone-error';
+      zoneEl.appendChild(errDiv);
     }
     errDiv.innerHTML = errors.join('<br>');
   } else if (errDiv) {
@@ -556,13 +556,13 @@ function validateLot(lotEl) {
   }
 }
 
-function validateAllLots() {
-  document.querySelectorAll('.lot-item').forEach(validateLot);
+function validateAllZones() {
+  document.querySelectorAll('.zone-item').forEach(validateZone);
 }
 
-function renumberLots() {
-  document.querySelectorAll('.lot-item').forEach((el, i) => {
-    el.querySelector('.lot-header span').textContent = 'Lot ' + (i + 1);
+function renumberZones() {
+  document.querySelectorAll('.zone-item').forEach((el, i) => {
+    el.querySelector('.zone-header span').textContent = 'Zone ' + (i + 1);
   });
 }
 
@@ -741,7 +741,7 @@ async function download() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'parking_lot.dxf';
+    a.download = 'stonegrid.dxf';
     a.click();
     URL.revokeObjectURL(url);
   } catch (e) {
@@ -793,7 +793,7 @@ def _process_config(cfg):
 
 @app.route('/')
 def index():
-    config_path = 'parking_config.json' if os.path.exists('parking_config.json') else 'parking_config.sample.json'
+    config_path = 'config.json' if os.path.exists('config.json') else 'config.sample.json'
     with open(config_path) as f:
         default_config = f.read()
     goatcounter_site = os.environ.get('GOATCOUNTER_SITE', '')
@@ -810,8 +810,8 @@ def api_preview():
     if errors:
         return jsonify(error='\n'.join(errors))
 
-    shapes, boundaries, num_spaces = gen.generate(settings)
-    svg = gen.render_svg(settings, shapes, boundaries, num_spaces)
+    shapes, boundaries, num_zones = gen.generate(settings)
+    svg = gen.render_svg(settings, shapes, boundaries, num_zones)
 
     # Strip XML declaration for inline embedding
     svg_inline = svg.replace('<?xml version="1.0" encoding="UTF-8"?>\n', '')
@@ -819,7 +819,7 @@ def api_preview():
 
     return jsonify(
         svg=svg_inline,
-        info=f'{len(shapes)} {shape_name} across {num_spaces} lots'
+        info=f'{len(shapes)} {shape_name} across {num_zones} zones'
     )
 
 
@@ -833,14 +833,14 @@ def api_dxf():
     if errors:
         return jsonify(error='\n'.join(errors)), 400
 
-    shapes, boundaries, num_spaces = gen.generate(settings)
-    dxf_bytes = gen.render_dxf_bytes(settings, shapes, boundaries, num_spaces)
+    shapes, boundaries, num_zones = gen.generate(settings)
+    dxf_bytes = gen.render_dxf_bytes(settings, shapes, boundaries, num_zones)
 
     return send_file(
         io.BytesIO(dxf_bytes),
         mimetype='application/dxf',
         as_attachment=True,
-        download_name='parking_lot.dxf'
+        download_name='stonegrid.dxf'
     )
 
 

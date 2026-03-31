@@ -1,6 +1,6 @@
 """
-Core generation logic for parking lot stone patterns (triangles and rectangles).
-Used by both the CLI (generate_parking.py) and the web app (app.py).
+Core generation logic for stone patterns (triangles and rectangles).
+Used by both the CLI (generate.py) and the web app (app.py).
 """
 
 import io
@@ -14,8 +14,8 @@ from ezdxf.enums import TextEntityAlignment
 DEFAULTS = {
     'pattern': 'triangles',
     'side': 200,
-    'space_width': 2700,
-    'space_height': 5000,
+    'zone_width': 2700,
+    'zone_height': 5000,
     'seed': 42,
     'colors': {
         'light':  {'rgb': (200, 200, 200), 'layer': 'STONE_LIGHT',  'aci': 9},
@@ -26,12 +26,12 @@ DEFAULTS = {
 
 
 def parse_config(cfg):
-    """Parse a config dict and return resolved settings + lots."""
+    """Parse a config dict and return resolved settings + zones."""
     pattern = cfg.get('pattern', DEFAULTS['pattern'])
     side = cfg.get('side', DEFAULTS['side'])
     side2 = cfg.get('side2', None)
-    space_width = cfg.get('space_width', DEFAULTS['space_width'])
-    space_height = cfg.get('space_height', DEFAULTS['space_height'])
+    zone_width = cfg.get('zone_width', DEFAULTS['zone_width'])
+    zone_height = cfg.get('zone_height', DEFAULTS['zone_height'])
     seed = cfg.get('seed', DEFAULTS['seed'])
 
     if pattern == 'triangles':
@@ -54,17 +54,17 @@ def parse_config(cfg):
                 'aci': val.get('aci', 7),
             }
 
-    lots = cfg.get('lots', [])
+    zones = cfg.get('zones', [])
 
     return {
         'pattern': pattern,
         'side': side,
         'side2': side2,
-        'space_width': space_width,
-        'space_height': space_height,
+        'zone_width': zone_width,
+        'zone_height': zone_height,
         'seed': seed,
         'colors': colors,
-        'lots': lots,
+        'zones': zones,
     }
 
 
@@ -72,22 +72,22 @@ def validate_config(settings):
     """Validate config. Returns list of error strings (empty = OK)."""
     errors = []
     colors = settings['colors']
-    lots = settings['lots']
+    zones = settings['zones']
 
     if settings['pattern'] not in ('triangles', 'rectangles'):
         errors.append(f'Unknown pattern "{settings["pattern"]}" (expected "triangles" or "rectangles")')
 
-    if not lots:
-        errors.append('No lots defined')
+    if not zones:
+        errors.append('No zones defined')
         return errors
 
-    for i, lot in enumerate(lots):
+    for i, zone in enumerate(zones):
         prop_sets = []
-        if _is_gradient(lot):
-            prop_sets.append((lot['bottom'], f'Lot {i + 1} bottom'))
-            prop_sets.append((lot['top'], f'Lot {i + 1} top'))
+        if _is_gradient(zone):
+            prop_sets.append((zone['bottom'], f'Zone {i + 1} bottom'))
+            prop_sets.append((zone['top'], f'Zone {i + 1} top'))
         else:
-            prop_sets.append((lot, f'Lot {i + 1}'))
+            prop_sets.append((zone, f'Zone {i + 1}'))
 
         for props, label in prop_sets:
             total = sum(props.values())
@@ -100,14 +100,14 @@ def validate_config(settings):
     return errors
 
 
-def _is_gradient(lot_def):
-    return 'bottom' in lot_def and 'top' in lot_def
+def _is_gradient(zone_def):
+    return 'bottom' in zone_def and 'top' in zone_def
 
 
-def _normalize_lot(lot_def):
-    if _is_gradient(lot_def):
-        return lot_def
-    return {'bottom': dict(lot_def), 'top': dict(lot_def)}
+def _normalize_zone(zone_def):
+    if _is_gradient(zone_def):
+        return zone_def
+    return {'bottom': dict(zone_def), 'top': dict(zone_def)}
 
 
 def _triangle_vertices(col, row, x_offset, y_offset, side, side2):
@@ -134,8 +134,8 @@ def _rectangle_vertices(col, row, x_offset, y_offset, side, side2):
     return [(x, y), (x + side, y), (x + side, y + side2), (x, y + side2)]
 
 
-def _pick_color(lot_def, seed, space_index, col, row, num_rows):
-    grad = _normalize_lot(lot_def)
+def _pick_color(zone_def, seed, zone_index, col, row, num_rows):
+    grad = _normalize_zone(zone_def)
     bottom = grad['bottom']
     top = grad['top']
 
@@ -148,7 +148,7 @@ def _pick_color(lot_def, seed, space_index, col, row, num_rows):
         tp = top.get(key, 0)
         interpolated[key] = b + (tp - b) * t
 
-    rng = random.Random(seed + space_index * 10000 + row * 1000 + col)
+    rng = random.Random(seed + zone_index * 10000 + row * 1000 + col)
     r = rng.random() * 100
 
     cumulative = 0
@@ -160,59 +160,59 @@ def _pick_color(lot_def, seed, space_index, col, row, num_rows):
 
 
 def generate(settings):
-    """Generate all shapes and boundaries from settings. Returns (shapes, boundaries, num_spaces)."""
+    """Generate all shapes and boundaries from settings. Returns (shapes, boundaries, num_zones)."""
     side = settings['side']
     side2 = settings['side2']
     pattern = settings['pattern']
-    space_width = settings['space_width']
-    space_height = settings['space_height']
+    zone_width = settings['zone_width']
+    zone_height = settings['zone_height']
     seed = settings['seed']
-    lots = settings['lots']
+    zones = settings['zones']
 
-    num_spaces = len(lots)
+    num_zones = len(zones)
 
     if pattern == 'rectangles':
-        num_rows = int(space_height / side2) + 1
-        num_cols = int(space_width / side) + 1
+        num_rows = int(zone_height / side2) + 1
+        num_cols = int(zone_width / side) + 1
         vert_fn = _rectangle_vertices
     else:
-        num_rows = int(space_height / side2) + 1
-        num_cols = int(space_width / (side / 2)) + 1
+        num_rows = int(zone_height / side2) + 1
+        num_cols = int(zone_width / (side / 2)) + 1
         vert_fn = _triangle_vertices
 
     all_shapes = []
-    for i, lot_def in enumerate(lots):
-        x_offset = i * space_width
+    for i, zone_def in enumerate(zones):
+        x_offset = i * zone_width
         for row in range(num_rows):
             for col in range(num_cols):
                 verts = vert_fn(col, row, x_offset, 0, side, side2)
                 n = len(verts)
                 cx = sum(v[0] for v in verts) / n
                 cy = sum(v[1] for v in verts) / n
-                if x_offset <= cx <= x_offset + space_width and 0 <= cy <= space_height:
-                    color = _pick_color(lot_def, seed, i, col, row, num_rows)
+                if x_offset <= cx <= x_offset + zone_width and 0 <= cy <= zone_height:
+                    color = _pick_color(zone_def, seed, i, col, row, num_rows)
                     all_shapes.append((verts, color))
 
     boundaries = []
-    for i in range(1, num_spaces):
-        x = i * space_width
-        boundaries.append((x, 0, x, space_height))
-    tw = num_spaces * space_width
+    for i in range(1, num_zones):
+        x = i * zone_width
+        boundaries.append((x, 0, x, zone_height))
+    tw = num_zones * zone_width
     boundaries.append((0, 0, tw, 0))
-    boundaries.append((0, space_height, tw, space_height))
-    boundaries.append((0, 0, 0, space_height))
-    boundaries.append((tw, 0, tw, space_height))
+    boundaries.append((0, zone_height, tw, zone_height))
+    boundaries.append((0, 0, 0, zone_height))
+    boundaries.append((tw, 0, tw, zone_height))
 
-    return all_shapes, boundaries, num_spaces
+    return all_shapes, boundaries, num_zones
 
 
-def render_svg(settings, all_shapes, boundaries, num_spaces):
+def render_svg(settings, all_shapes, boundaries, num_zones):
     """Render SVG string."""
     colors = settings['colors']
-    space_width = settings['space_width']
-    space_height = settings['space_height']
-    total_width = num_spaces * space_width
-    total_height = space_height
+    zone_width = settings['zone_width']
+    zone_height = settings['zone_height']
+    total_width = num_zones * zone_width
+    total_height = zone_height
 
     margin = 200
     svg_width = total_width + 2 * margin
@@ -238,9 +238,9 @@ def render_svg(settings, all_shapes, boundaries, num_spaces):
                      f'x2="{x2}" y2="{total_height - y2}" '
                      f'stroke="white" stroke-width="8" stroke-dasharray="100,80"/>')
 
-    for i in range(num_spaces):
-        cx = i * space_width + space_width / 2
-        cy = space_height / 2
+    for i in range(num_zones):
+        cx = i * zone_width + zone_width / 2
+        cy = zone_height / 2
         lines.append(f'<text x="{cx}" y="{total_height - cy}" '
                      f'font-size="300" fill="white" fill-opacity="0.4" '
                      f'text-anchor="middle" dominant-baseline="middle" '
@@ -250,11 +250,11 @@ def render_svg(settings, all_shapes, boundaries, num_spaces):
     return '\n'.join(lines)
 
 
-def render_dxf_bytes(settings, all_shapes, boundaries, num_spaces):
+def render_dxf_bytes(settings, all_shapes, boundaries, num_zones):
     """Render DXF and return as bytes."""
     colors = settings['colors']
-    space_width = settings['space_width']
-    space_height = settings['space_height']
+    zone_width = settings['zone_width']
+    zone_height = settings['zone_height']
 
     doc = ezdxf.new('R2010')
     msp = doc.modelspace()
@@ -275,9 +275,9 @@ def render_dxf_bytes(settings, all_shapes, boundaries, num_spaces):
     for (x1, y1, x2, y2) in boundaries:
         msp.add_line((x1, y1), (x2, y2), dxfattribs={'layer': 'BOUNDARIES', 'linetype': 'DASHED'})
 
-    for i in range(num_spaces):
-        cx = i * space_width + space_width / 2
-        cy = space_height / 2
+    for i in range(num_zones):
+        cx = i * zone_width + zone_width / 2
+        cy = zone_height / 2
         msp.add_text(str(i + 1), height=300,
                      dxfattribs={'layer': 'LABELS', 'color': 7}
                      ).set_placement((cx, cy), align=TextEntityAlignment.MIDDLE_CENTER)

@@ -1,18 +1,18 @@
 # Stonegrid
 
-A parking lot stone pattern generator that creates mosaic patterns (triangles or rectangles) with configurable color gradients per lot.
+A stone pattern generator that creates mosaic patterns (triangles or rectangles) with configurable color gradients per zone. Use it for parking lots, patios, walkways, or any tiled surface.
 
 **Live demo:** https://stonegrid.onrender.com/
 
 ## Features
 
-- Visual editor with color pickers, sliders, and gradient toggle per lot
+- Visual editor with color pickers, sliders, and gradient toggle per zone
 - JSON editor for direct config editing
 - Preview patterns as SVG in a web UI
 - Export to DXF for use in CAD software
 - Shareable URLs that encode the full config
 - Triangle and rectangle pattern types with configurable dimensions
-- Configurable space dimensions and color palette
+- Configurable zone dimensions and color palette
 
 ## Quick start
 
@@ -31,11 +31,11 @@ Open http://localhost:5001 — use the visual editor or edit JSON directly, clic
 ### CLI
 
 ```bash
-cp parking_config.sample.json parking_config.json
-python generate_parking.py parking_config.json
+cp config.sample.json config.json
+python generate.py config.json
 ```
 
-Generates `parking_lot.svg` and `parking_lot.dxf` in the current directory.
+Generates `stonegrid.svg` and `stonegrid.dxf` in the current directory.
 
 ### Render.com
 
@@ -58,27 +58,27 @@ docker run -p 8080:8080 stonegrid
 
 | File | Description |
 |------|-------------|
-| [`parking_generator.py`](parking_generator.py) | Core generation logic — config parsing, validation, pattern generation, SVG and DXF rendering |
+| [`generator.py`](generator.py) | Core generation logic — config parsing, validation, pattern generation, SVG and DXF rendering |
 | [`app.py`](app.py) | Flask web app with preview and DXF download API endpoints |
-| [`generate_parking.py`](generate_parking.py) | CLI wrapper — reads a config file, writes SVG and DXF to disk |
-| [`parking_config.sample.json`](parking_config.sample.json) | Example configuration |
+| [`generate.py`](generate.py) | CLI wrapper — reads a config file, writes SVG and DXF to disk |
+| [`config.sample.json`](config.sample.json) | Example configuration |
 
 ## Configuration
 
-See [`parking_config.sample.json`](parking_config.sample.json) for an example. Key fields:
+See [`config.sample.json`](config.sample.json) for an example. Key fields:
 
 | Field | Description | Default |
 |-------|-------------|---------|
 | `pattern` | Pattern type: `"triangles"` or `"rectangles"` | `"triangles"` |
 | `side` | Primary side length (mm) | 200 |
 | `side2` | Second dimension (mm) — triangle height or rectangle height | equilateral height for triangles, same as `side` for rectangles |
-| `space_width` | Width of one parking space (mm) | 2700 |
-| `space_height` | Depth of one parking space (mm) | 5000 |
+| `zone_width` | Width of one zone (mm) | 2700 |
+| `zone_height` | Height of one zone (mm) | 5000 |
 | `seed` | Random seed for reproducibility | 42 |
 | `colors` | Color definitions with RGB, DXF layer, and ACI color | light/middle/dark |
-| `lots` | Array of lot definitions with color proportions | — |
+| `zones` | Array of zone definitions with color proportions | — |
 
-Each lot can be either a flat proportion (`{"light": 70, "middle": 20, "dark": 10}`) or a gradient with `bottom` and `top` keys.
+Each zone can be either a flat proportion (`{"light": 70, "middle": 20, "dark": 10}`) or a gradient with `bottom` and `top` keys.
 
 ## Tests
 
