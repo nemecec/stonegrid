@@ -35,7 +35,17 @@ HTML = r"""<!DOCTYPE html>
   .btn-preview:hover { background: #357abd; }
   .btn-download { background: #2ecc71; color: #fff; }
   .btn-download:hover { background: #27ae60; }
-  .btn-download:disabled { background: #95a5a6; cursor: not-allowed; }
+  .btn-share { background: #8e44ad; color: #fff; }
+  .btn-share:hover { background: #7d3c98; }
+  .btn-download:disabled, .btn-share:disabled { background: #95a5a6; cursor: not-allowed; }
+  .share-bar { display: none; margin-top: 10px; gap: 6px; align-items: center; }
+  .share-bar.active { display: flex; }
+  .share-bar input { flex: 1; font-family: "SF Mono", Monaco, Consolas, monospace; font-size: 12px;
+                     padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; background: #fff; }
+  .share-bar input:focus { outline: none; border-color: #8e44ad; box-shadow: 0 0 0 2px rgba(142,68,173,0.2); }
+  .btn-copy { padding: 6px 12px; font-size: 12px; background: #8e44ad; color: #fff;
+              border: none; border-radius: 4px; cursor: pointer; white-space: nowrap; }
+  .btn-copy:hover { background: #7d3c98; }
   .error { color: #e74c3c; margin-top: 10px; font-size: 13px; white-space: pre-wrap; }
   .info { color: #666; margin-top: 10px; font-size: 13px; }
   .preview-box { background: #fff; border: 1px solid #ccc; border-radius: 6px;
@@ -67,9 +77,14 @@ HTML = r"""<!DOCTYPE html>
         <button class="btn-download" id="downloadBtn" onclick="download()" disabled title="Run Preview first to enable download">
           <span class="spinner" id="dxfSpinner" title="Generating DXF file, please wait…">&#9881; </span>Download DXF
         </button>
+        <button class="btn-share" id="shareBtn" onclick="share()" disabled title="Run Preview first to get a shareable link">Share Link</button>
       </div>
       <div id="error" class="error"></div>
       <div id="info" class="info"></div>
+      <div class="share-bar" id="shareBar">
+        <input type="text" id="shareUrl" readonly>
+        <button class="btn-copy" onclick="copyShareUrl()">Copy</button>
+      </div>
     </div>
     <div class="preview-panel">
       <div class="preview-box" id="previewBox">
@@ -86,6 +101,90 @@ HTML = r"""<!DOCTYPE html>
 </div>
 <script>
 let currentConfig = null;
+
+async function compress(str) {
+  const bytes = new TextEncoder().encode(str);
+  const cs = new CompressionStream('deflate-raw');
+  const writer = cs.writable.getWriter();
+  writer.write(bytes);
+  writer.close();
+  const compressed = await new Response(cs.readable).arrayBuffer();
+  return compressed;
+}
+
+async function decompress(buf) {
+  const ds = new DecompressionStream('deflate-raw');
+  const writer = ds.writable.getWriter();
+  writer.write(buf);
+  writer.close();
+  const decompressed = await new Response(ds.readable).arrayBuffer();
+  return new TextDecoder().decode(decompressed);
+}
+
+function toBase64Url(buf) {
+  let binary = '';
+  const bytes = new Uint8Array(buf);
+  for (const b of bytes) binary += String.fromCharCode(b);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function fromBase64Url(str) {
+  str = str.replace(/-/g, '+').replace(/_/g, '/');
+  const pad = (4 - str.length % 4) % 4;
+  str += '='.repeat(pad);
+  const binary = atob(str);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes.buffer;
+}
+
+async function encodeConfig(json) {
+  const compressed = await compress(json);
+  return toBase64Url(compressed);
+}
+
+async function decodeConfig(hash) {
+  const buf = fromBase64Url(hash);
+  return await decompress(buf);
+}
+
+async function updateHash(json) {
+  const encoded = await encodeConfig(json);
+  history.replaceState(null, '', '#' + encoded);
+}
+
+async function share() {
+  if (!currentConfig) return;
+  const json = document.getElementById('config').value;
+  await updateHash(json);
+  const url = location.href;
+  const urlInput = document.getElementById('shareUrl');
+  const bar = document.getElementById('shareBar');
+  urlInput.value = url;
+  bar.classList.add('active');
+  urlInput.select();
+  try {
+    await navigator.clipboard.writeText(url);
+    flashCopyButton('Copied!');
+  } catch (e) {
+    // Clipboard API may fail (e.g. non-HTTPS) — user can copy from the input
+  }
+}
+
+function copyShareUrl() {
+  const urlInput = document.getElementById('shareUrl');
+  urlInput.select();
+  navigator.clipboard.writeText(urlInput.value).then(() => {
+    flashCopyButton('Copied!');
+  });
+}
+
+function flashCopyButton(msg) {
+  const btn = document.querySelector('.btn-copy');
+  const orig = btn.textContent;
+  btn.textContent = msg;
+  setTimeout(() => btn.textContent = orig, 2000);
+}
 
 async function preview() {
   const errEl = document.getElementById('error');
@@ -120,7 +219,11 @@ async function preview() {
     const dlBtn = document.getElementById('downloadBtn');
     dlBtn.disabled = false;
     dlBtn.title = '';
+    const shareBtn = document.getElementById('shareBtn');
+    shareBtn.disabled = false;
+    shareBtn.title = '';
     infoEl.textContent = data.info;
+    updateHash(document.getElementById('config').value);
   } catch (e) {
     errEl.textContent = 'Request failed: ' + e.message;
   } finally {
@@ -165,6 +268,19 @@ async function download() {
     btn.title = '';
   }
 }
+
+// Load config from URL hash on page load
+(async function() {
+  const hash = location.hash.slice(1);
+  if (!hash) return;
+  try {
+    const json = await decodeConfig(hash);
+    JSON.parse(json); // validate
+    document.getElementById('config').value = json;
+  } catch (e) {
+    document.getElementById('error').textContent = 'Failed to load config from URL: ' + e.message;
+  }
+})();
 
 // Allow Tab key in textarea
 document.getElementById('config').addEventListener('keydown', function(e) {
