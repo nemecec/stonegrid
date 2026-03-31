@@ -213,6 +213,9 @@ HTML = r"""<!DOCTYPE html>
     </a>
   </footer>
 </div>
+{% if goatcounter_site %}
+<script data-goatcounter="https://{{ goatcounter_site }}.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+{% endif %}
 <script>
 let currentConfig = null;
 
@@ -750,7 +753,8 @@ def index():
     config_path = 'parking_config.json' if os.path.exists('parking_config.json') else 'parking_config.sample.json'
     with open(config_path) as f:
         default_config = f.read()
-    return render_template_string(HTML, default_config=default_config)
+    goatcounter_site = os.environ.get('GOATCOUNTER_SITE', '')
+    return render_template_string(HTML, default_config=default_config, goatcounter_site=goatcounter_site)
 
 
 @app.route('/api/preview', methods=['POST'])
