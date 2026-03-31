@@ -66,7 +66,9 @@ HTML = r"""<!DOCTYPE html>
 
   /* Lot list */
   .lot-item { padding: 10px; background: #fff; border: 1px solid #ddd; border-radius: 6px;
-              margin-bottom: 8px; }
+              margin-bottom: 8px; transition: border-color 0.2s, box-shadow 0.2s; }
+  .lot-item.has-error { border-color: #e74c3c; box-shadow: 0 0 0 2px rgba(231,76,60,0.15); }
+  .lot-error { font-size: 11px; color: #e74c3c; margin-top: 4px; }
   .lot-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
   .lot-header span { font-weight: 600; font-size: 13px; }
   .lot-toggle { display: flex; gap: 4px; align-items: center; font-size: 12px; color: #666; }
@@ -101,6 +103,7 @@ HTML = r"""<!DOCTYPE html>
   .btn-download:hover { background: #27ae60; }
   .btn-share { background: #8e44ad; color: #fff; }
   .btn-share:hover { background: #7d3c98; }
+  .btn-share.active { background: #6c3483; box-shadow: inset 0 2px 4px rgba(0,0,0,0.3); }
   .btn-download:disabled, .btn-share:disabled { background: #95a5a6; cursor: not-allowed; }
   .share-bar { display: none; margin-top: 10px; gap: 6px; align-items: center; }
   .share-bar.active { display: flex; }
@@ -110,8 +113,8 @@ HTML = r"""<!DOCTYPE html>
   .btn-copy { padding: 6px 12px; font-size: 12px; background: #8e44ad; color: #fff;
               border: none; border-radius: 4px; cursor: pointer; white-space: nowrap; }
   .btn-copy:hover { background: #7d3c98; }
-  .error { color: #e74c3c; margin-top: 10px; font-size: 13px; white-space: pre-wrap; }
-  .info { color: #666; margin-top: 10px; font-size: 13px; }
+  .status { margin-top: 4px; font-size: 13px; min-height: 1.3em; color: #666; white-space: pre-wrap; }
+  .status.error { color: #e74c3c; }
   .preview-box { background: #fff; border: 1px solid #ccc; border-radius: 6px;
                  padding: 16px; min-height: 200px; overflow: auto; }
   .preview-box svg { width: 100%; height: auto; }
@@ -191,8 +194,7 @@ HTML = r"""<!DOCTYPE html>
         <span class="spinner" id="spinner"><span class="spin-icon"></span> Generating preview…</span>
         <span class="spinner" id="dxfSpinner"><span class="spin-icon"></span> Generating DXF…</span>
       </div>
-      <div id="error" class="error"></div>
-      <div id="info" class="info"></div>
+      <div id="status" class="status"></div>
       <div class="share-bar" id="shareBar">
         <input type="text" id="shareUrl" readonly>
         <button class="btn-copy" onclick="copyShareUrl()">Copy</button>
@@ -253,6 +255,7 @@ function jsonToVisual() {
   document.getElementById('ve-seed').value = cfg.seed || 42;
   renderColors(cfg.colors || {});
   renderLots(cfg.lots || [], cfg.colors || {});
+  validateAllLots();
 }
 
 function visualToJson() {
@@ -378,7 +381,7 @@ function makePropRows(colorMap, values, section) {
       '<div class="prop-row" data-color="' + name + '" data-section="' + section + '">' +
         '<div class="prop-swatch" style="background:' + hex + '"></div>' +
         '<span class="prop-name">' + name + '</span>' +
-        '<input type="range" min="0" max="100" value="' + val + '" ' +
+        '<input type="range" min="0" max="100" value="' + val + '" tabindex="-1" ' +
           'oninput="syncPropFromSlider(this)">' +
         '<input type="number" class="prop-val" min="0" max="100" value="' + val + '" ' +
           'oninput="syncPropFromInput(this)"><span class="prop-pct">%</span>' +
@@ -466,6 +469,7 @@ function addLot() {
 
 function syncPropFromSlider(slider) {
   slider.parentElement.querySelector('.prop-val').value = slider.value;
+  validateLot(slider.closest('.lot-item'));
 }
 
 function syncPropFromInput(input) {
@@ -474,6 +478,40 @@ function syncPropFromInput(input) {
   if (v < 0) v = 0;
   if (v > 100) v = 100;
   input.parentElement.querySelector('input[type="range"]').value = v;
+  validateLot(input.closest('.lot-item'));
+}
+
+function validateLot(lotEl) {
+  if (!lotEl) return;
+  const isGrad = lotEl.querySelector('.lot-toggle input').checked;
+  const sections = isGrad ? ['bottom', 'top'] : ['flat'];
+  let errors = [];
+  sections.forEach(section => {
+    let total = 0;
+    lotEl.querySelectorAll('.prop-row[data-section="' + section + '"]').forEach(row => {
+      total += Number(row.querySelector('input[type="range"]').value);
+    });
+    if (Math.abs(total - 100) > 0.5) {
+      const label = isGrad ? (section.charAt(0).toUpperCase() + section.slice(1) + ': ') : '';
+      errors.push(label + 'proportions sum to ' + total + '%, expected 100%');
+    }
+  });
+  lotEl.classList.toggle('has-error', errors.length > 0);
+  let errDiv = lotEl.querySelector('.lot-error');
+  if (errors.length > 0) {
+    if (!errDiv) {
+      errDiv = document.createElement('div');
+      errDiv.className = 'lot-error';
+      lotEl.appendChild(errDiv);
+    }
+    errDiv.innerHTML = errors.join('<br>');
+  } else if (errDiv) {
+    errDiv.remove();
+  }
+}
+
+function validateAllLots() {
+  document.querySelectorAll('.lot-item').forEach(validateLot);
 }
 
 function renumberLots() {
@@ -534,14 +572,21 @@ async function updateHash(json) {
 // --- Share ---
 async function share() {
   if (!currentConfig) return;
+  const bar = document.getElementById('shareBar');
+  const shareBtn = document.getElementById('shareBtn');
+  if (bar.classList.contains('active')) {
+    bar.classList.remove('active');
+    shareBtn.classList.remove('active');
+    return;
+  }
   syncToJson();
   const json = document.getElementById('config').value;
   await updateHash(json);
   const url = location.href;
   const urlInput = document.getElementById('shareUrl');
-  const bar = document.getElementById('shareBar');
   urlInput.value = url;
   bar.classList.add('active');
+  shareBtn.classList.add('active');
   urlInput.select();
   try {
     await navigator.clipboard.writeText(url);
@@ -572,20 +617,23 @@ function syncToJson() {
 }
 
 // --- Preview & Download ---
+function setStatus(msg, isError) {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.classList.toggle('error', isError);
+}
+
 async function preview() {
   syncToJson();
-  const errEl = document.getElementById('error');
-  const infoEl = document.getElementById('info');
   const spinner = document.getElementById('spinner');
   const box = document.getElementById('previewBox');
-  errEl.textContent = '';
-  infoEl.textContent = '';
+  setStatus('', false);
 
   let cfg;
   try {
     cfg = JSON.parse(document.getElementById('config').value);
   } catch (e) {
-    errEl.textContent = 'Invalid JSON: ' + e.message;
+    setStatus('Invalid JSON: ' + e.message, true);
     return;
   }
 
@@ -598,7 +646,7 @@ async function preview() {
     });
     const data = await resp.json();
     if (data.error) {
-      errEl.textContent = data.error;
+      setStatus(data.error, true);
       return;
     }
     box.innerHTML = data.svg;
@@ -609,10 +657,14 @@ async function preview() {
     const shareBtn = document.getElementById('shareBtn');
     shareBtn.disabled = false;
     shareBtn.title = '';
-    infoEl.textContent = data.info;
-    updateHash(document.getElementById('config').value);
+    setStatus(data.info, false);
+    await updateHash(document.getElementById('config').value);
+    const shareBar = document.getElementById('shareBar');
+    if (shareBar.classList.contains('active')) {
+      document.getElementById('shareUrl').value = location.href;
+    }
   } catch (e) {
-    errEl.textContent = 'Request failed: ' + e.message;
+    setStatus('Request failed: ' + e.message, true);
   } finally {
     spinner.classList.remove('active');
   }
@@ -620,10 +672,9 @@ async function preview() {
 
 async function download() {
   if (!currentConfig) return;
-  const errEl = document.getElementById('error');
   const btn = document.getElementById('downloadBtn');
   const dxfSpinner = document.getElementById('dxfSpinner');
-  errEl.textContent = '';
+  setStatus('', false);
 
   btn.disabled = true;
   btn.title = 'Generating DXF file, please wait…';
@@ -637,7 +688,7 @@ async function download() {
     });
     if (!resp.ok) {
       const data = await resp.json();
-      errEl.textContent = data.error || 'Download failed';
+      setStatus(data.error || 'Download failed', true);
       return;
     }
     const blob = await resp.blob();
@@ -648,7 +699,7 @@ async function download() {
     a.click();
     URL.revokeObjectURL(url);
   } catch (e) {
-    errEl.textContent = 'Download failed: ' + e.message;
+    setStatus('Download failed: ' + e.message, true);
   } finally {
     dxfSpinner.classList.remove('active');
     btn.disabled = false;
@@ -666,7 +717,7 @@ async function download() {
       JSON.parse(json); // validate
       document.getElementById('config').value = json;
     } catch (e) {
-      document.getElementById('error').textContent = 'Failed to load config from URL: ' + e.message;
+      setStatus('Failed to load config from URL: ' + e.message, true);
     }
   }
   // Populate visual editor from JSON
