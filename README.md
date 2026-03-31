@@ -2,6 +2,8 @@
 
 A parking lot stone pattern generator that creates triangular mosaic patterns with configurable color gradients per lot.
 
+**Live demo:** https://stonegrid.onrender.com/
+
 ## Features
 
 - Define color proportions per parking lot with optional bottom-to-top gradients
@@ -31,6 +33,16 @@ python generate_parking.py parking_config.json
 ```
 
 Generates `parking_lot.svg` and `parking_lot.dxf` in the current directory.
+
+### Render.com
+
+Create a new **Web Service** with Python runtime:
+
+| Setting | Value |
+|---------|-------|
+| Build Command | `pip install -r requirements.txt` |
+| Start Command | `gunicorn --bind 0.0.0.0:$PORT --workers 2 --timeout 120 app:app` |
+| Environment variable | `PYTHON_VERSION=3.12.0` |
 
 ### Docker
 

@@ -50,7 +50,8 @@ HTML = r"""<!DOCTYPE html>
 <body>
 <div class="container">
   <h1>Parking Lot Stone Pattern Generator</h1>
-  <p class="subtitle">Define color proportions per lot, preview the pattern, download as DXF.</p>
+  <p class="subtitle">Define color proportions per lot, preview the pattern, download as DXF.
+    <a href="https://github.com/nemecec/stonegrid" style="color:#4a90d9">GitHub</a></p>
 
   <div class="layout">
     <div class="editor-panel">
