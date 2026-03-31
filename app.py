@@ -117,7 +117,10 @@ HTML = r"""<!DOCTYPE html>
   .preview-box svg { width: 100%; height: auto; }
   .preview-placeholder { color: #aaa; text-align: center; padding: 80px 0; }
   .spinner { display: none; }
-  .spinner.active { display: inline-block; }
+  .spinner.active { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: #666; }
+  .spin-icon { display: inline-block; width: 16px; height: 16px; border: 2px solid #ccc;
+               border-top-color: #4a90d9; border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
   footer { margin-top: 30px; padding-top: 16px; border-top: 1px solid #ddd;
            color: #999; font-size: 12px; text-align: center; }
   footer a { color: #999; text-decoration: none; }
@@ -182,13 +185,11 @@ HTML = r"""<!DOCTYPE html>
       </div>
 
       <div class="buttons">
-        <button class="btn-preview" onclick="preview()">
-          <span class="spinner" id="spinner">&#9881; </span>Preview
-        </button>
-        <button class="btn-download" id="downloadBtn" onclick="download()" disabled title="Run Preview first to enable download">
-          <span class="spinner" id="dxfSpinner" title="Generating DXF file, please wait…">&#9881; </span>Download DXF
-        </button>
+        <button class="btn-preview" onclick="preview()">Preview</button>
+        <button class="btn-download" id="downloadBtn" onclick="download()" disabled title="Run Preview first to enable download">Download DXF</button>
         <button class="btn-share" id="shareBtn" onclick="share()" disabled title="Run Preview first to get a shareable link">Share Link</button>
+        <span class="spinner" id="spinner"><span class="spin-icon"></span> Generating preview…</span>
+        <span class="spinner" id="dxfSpinner"><span class="spin-icon"></span> Generating DXF…</span>
       </div>
       <div id="error" class="error"></div>
       <div id="info" class="info"></div>
