@@ -6,9 +6,11 @@ A parking lot stone pattern generator that creates triangular mosaic patterns wi
 
 ## Features
 
-- Define color proportions per parking lot with optional bottom-to-top gradients
+- Visual editor with color pickers, sliders, and gradient toggle per lot
+- JSON editor for direct config editing
 - Preview patterns as SVG in a web UI
 - Export to DXF for use in CAD software
+- Shareable URLs that encode the full config
 - Configurable triangle size, space dimensions, and color palette
 
 ## Quick start
@@ -23,7 +25,7 @@ pip install -r requirements.txt
 python app.py
 ```
 
-Open http://localhost:5001 — edit the JSON config, click Preview, and download DXF.
+Open http://localhost:5001 — use the visual editor or edit JSON directly, click Preview, and download DXF.
 
 ### CLI
 
