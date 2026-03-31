@@ -1,0 +1,10 @@
+__pycache__
+*.pyc
+*.svg
+*.dxf
+.git
+.github
+.idea
+.claude
+tests
+requirements-dev.txt
