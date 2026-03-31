@@ -1,5 +1,5 @@
 """
-Core generation logic for triangular parking lot stone patterns.
+Core generation logic for parking lot stone patterns (triangles and rectangles).
 Used by both the CLI (generate_parking.py) and the web app (app.py).
 """
 
@@ -12,7 +12,8 @@ from ezdxf.enums import TextEntityAlignment
 
 # === Defaults ===
 DEFAULTS = {
-    'triangle_side': 200,
+    'pattern': 'triangles',
+    'side': 200,
     'space_width': 2700,
     'space_height': 5000,
     'seed': 42,
@@ -26,11 +27,22 @@ DEFAULTS = {
 
 def parse_config(cfg):
     """Parse a config dict and return resolved settings + lots."""
-    triangle_side = cfg.get('triangle_side', DEFAULTS['triangle_side'])
+    pattern = cfg.get('pattern', DEFAULTS['pattern'])
+    side = cfg.get('side', DEFAULTS['side'])
+    side2 = cfg.get('side2', None)
     space_width = cfg.get('space_width', DEFAULTS['space_width'])
     space_height = cfg.get('space_height', DEFAULTS['space_height'])
     seed = cfg.get('seed', DEFAULTS['seed'])
-    tri_height = triangle_side * math.sqrt(3) / 2
+
+    if pattern == 'triangles':
+        # For triangles: side = horizontal base, side2 = vertical height
+        # Default: equilateral triangle height
+        if side2 is None:
+            side2 = side * math.sqrt(3) / 2
+    else:
+        # For rectangles: side2 defaults to side (square)
+        if side2 is None:
+            side2 = side
 
     colors = dict(DEFAULTS['colors'])
     if 'colors' in cfg:
@@ -45,11 +57,12 @@ def parse_config(cfg):
     lots = cfg.get('lots', [])
 
     return {
-        'triangle_side': triangle_side,
+        'pattern': pattern,
+        'side': side,
+        'side2': side2,
         'space_width': space_width,
         'space_height': space_height,
         'seed': seed,
-        'tri_height': tri_height,
         'colors': colors,
         'lots': lots,
     }
@@ -60,6 +73,9 @@ def validate_config(settings):
     errors = []
     colors = settings['colors']
     lots = settings['lots']
+
+    if settings['pattern'] not in ('triangles', 'rectangles'):
+        errors.append(f'Unknown pattern "{settings["pattern"]}" (expected "triangles" or "rectangles")')
 
     if not lots:
         errors.append('No lots defined')
@@ -94,19 +110,28 @@ def _normalize_lot(lot_def):
     return {'bottom': dict(lot_def), 'top': dict(lot_def)}
 
 
-def _triangle_vertices(col, row, x_offset, y_offset, triangle_side, tri_height):
+def _triangle_vertices(col, row, x_offset, y_offset, side, side2):
+    """Generate vertices for a triangle in a tessellating grid.
+    side = horizontal base width, side2 = vertical row height."""
     points_up = (col + row) % 2 == 0
-    x_base = col * (triangle_side / 2) + x_offset
-    y_base = row * tri_height + y_offset
+    x_base = col * (side / 2) + x_offset
+    y_base = row * side2 + y_offset
 
     if points_up:
         return [(x_base, y_base),
-                (x_base + triangle_side, y_base),
-                (x_base + triangle_side / 2, y_base + tri_height)]
+                (x_base + side, y_base),
+                (x_base + side / 2, y_base + side2)]
     else:
-        return [(x_base, y_base + tri_height),
-                (x_base + triangle_side, y_base + tri_height),
-                (x_base + triangle_side / 2, y_base)]
+        return [(x_base, y_base + side2),
+                (x_base + side, y_base + side2),
+                (x_base + side / 2, y_base)]
+
+
+def _rectangle_vertices(col, row, x_offset, y_offset, side, side2):
+    """Generate vertices for a rectangle in a simple grid."""
+    x = col * side + x_offset
+    y = row * side2 + y_offset
+    return [(x, y), (x + side, y), (x + side, y + side2), (x, y + side2)]
 
 
 def _pick_color(lot_def, seed, space_index, col, row, num_rows):
@@ -135,29 +160,38 @@ def _pick_color(lot_def, seed, space_index, col, row, num_rows):
 
 
 def generate(settings):
-    """Generate all triangles and boundaries from settings. Returns (triangles, boundaries, num_spaces)."""
-    triangle_side = settings['triangle_side']
+    """Generate all shapes and boundaries from settings. Returns (shapes, boundaries, num_spaces)."""
+    side = settings['side']
+    side2 = settings['side2']
+    pattern = settings['pattern']
     space_width = settings['space_width']
     space_height = settings['space_height']
     seed = settings['seed']
-    tri_height = settings['tri_height']
     lots = settings['lots']
 
     num_spaces = len(lots)
-    num_rows = int(space_height / tri_height) + 1
-    num_cols = int(space_width / (triangle_side / 2)) + 1
 
-    all_triangles = []
+    if pattern == 'rectangles':
+        num_rows = int(space_height / side2) + 1
+        num_cols = int(space_width / side) + 1
+        vert_fn = _rectangle_vertices
+    else:
+        num_rows = int(space_height / side2) + 1
+        num_cols = int(space_width / (side / 2)) + 1
+        vert_fn = _triangle_vertices
+
+    all_shapes = []
     for i, lot_def in enumerate(lots):
         x_offset = i * space_width
         for row in range(num_rows):
             for col in range(num_cols):
-                verts = _triangle_vertices(col, row, x_offset, 0, triangle_side, tri_height)
-                cx = sum(v[0] for v in verts) / 3
-                cy = sum(v[1] for v in verts) / 3
+                verts = vert_fn(col, row, x_offset, 0, side, side2)
+                n = len(verts)
+                cx = sum(v[0] for v in verts) / n
+                cy = sum(v[1] for v in verts) / n
                 if x_offset <= cx <= x_offset + space_width and 0 <= cy <= space_height:
                     color = _pick_color(lot_def, seed, i, col, row, num_rows)
-                    all_triangles.append((verts, color))
+                    all_shapes.append((verts, color))
 
     boundaries = []
     for i in range(1, num_spaces):
@@ -169,10 +203,10 @@ def generate(settings):
     boundaries.append((0, 0, 0, space_height))
     boundaries.append((tw, 0, tw, space_height))
 
-    return all_triangles, boundaries, num_spaces
+    return all_shapes, boundaries, num_spaces
 
 
-def render_svg(settings, all_triangles, boundaries, num_spaces):
+def render_svg(settings, all_shapes, boundaries, num_spaces):
     """Render SVG string."""
     colors = settings['colors']
     space_width = settings['space_width']
@@ -193,7 +227,7 @@ def render_svg(settings, all_triangles, boundaries, num_spaces):
     lines.append(f'<rect x="{-margin}" y="{-margin}" '
                  f'width="{svg_width}" height="{svg_height}" fill="#e8e8e8"/>')
 
-    for verts, color_key in all_triangles:
+    for verts, color_key in all_shapes:
         r, g, b = colors[color_key]['rgb']
         points_str = ' '.join(f'{v[0]:.1f},{total_height - v[1]:.1f}' for v in verts)
         lines.append(f'<polygon points="{points_str}" '
@@ -216,7 +250,7 @@ def render_svg(settings, all_triangles, boundaries, num_spaces):
     return '\n'.join(lines)
 
 
-def render_dxf_bytes(settings, all_triangles, boundaries, num_spaces):
+def render_dxf_bytes(settings, all_shapes, boundaries, num_spaces):
     """Render DXF and return as bytes."""
     colors = settings['colors']
     space_width = settings['space_width']
@@ -230,7 +264,7 @@ def render_dxf_bytes(settings, all_triangles, boundaries, num_spaces):
     doc.layers.add('BOUNDARIES', color=7)
     doc.layers.add('LABELS', color=7)
 
-    for verts, color_key in all_triangles:
+    for verts, color_key in all_shapes:
         info = colors[color_key]
         layer = info['layer']
         points = list(verts) + [verts[0]]

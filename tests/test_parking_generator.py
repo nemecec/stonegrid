@@ -6,7 +6,8 @@ import parking_generator as gen
 
 
 SAMPLE_CONFIG = {
-    "triangle_side": 200,
+    "pattern": "triangles",
+    "side": 200,
     "space_width": 2700,
     "space_height": 5000,
     "seed": 42,
@@ -23,25 +24,52 @@ SAMPLE_CONFIG = {
     ],
 }
 
+RECT_CONFIG = {
+    "pattern": "rectangles",
+    "side": 200,
+    "side2": 100,
+    "space_width": 2700,
+    "space_height": 5000,
+    "seed": 42,
+    "colors": {
+        "light": {"rgb": [200, 200, 200], "layer": "STONE_LIGHT", "aci": 9},
+        "dark": {"rgb": [80, 80, 80], "layer": "STONE_DARK", "aci": 251},
+    },
+    "lots": [{"light": 60, "dark": 40}],
+}
+
 
 class TestParseConfig:
     def test_defaults_applied(self):
         settings = gen.parse_config({})
-        assert settings["triangle_side"] == 200
+        assert settings["side"] == 200
         assert settings["space_width"] == 2700
         assert settings["space_height"] == 5000
         assert settings["seed"] == 42
+        assert settings["pattern"] == "triangles"
 
     def test_custom_values(self):
-        cfg = {"triangle_side": 300, "seed": 99}
+        cfg = {"side": 300, "seed": 99}
         settings = gen.parse_config(cfg)
-        assert settings["triangle_side"] == 300
+        assert settings["side"] == 300
         assert settings["seed"] == 99
 
-    def test_tri_height_calculated(self):
-        settings = gen.parse_config({"triangle_side": 200})
+    def test_triangle_side2_defaults_to_equilateral_height(self):
+        settings = gen.parse_config({"side": 200})
         expected = 200 * math.sqrt(3) / 2
-        assert abs(settings["tri_height"] - expected) < 0.001
+        assert abs(settings["side2"] - expected) < 0.001
+
+    def test_triangle_custom_side2(self):
+        settings = gen.parse_config({"pattern": "triangles", "side": 200, "side2": 150})
+        assert settings["side2"] == 150
+
+    def test_rectangle_side2_defaults_to_side(self):
+        settings = gen.parse_config({"pattern": "rectangles", "side": 200})
+        assert settings["side2"] == 200
+
+    def test_rectangle_custom_side2(self):
+        settings = gen.parse_config({"pattern": "rectangles", "side": 200, "side2": 100})
+        assert settings["side2"] == 100
 
     def test_custom_colors(self):
         cfg = {
@@ -89,31 +117,35 @@ class TestValidateConfig:
         errors = gen.validate_config(settings)
         assert any("unknown color" in e for e in errors)
 
+    def test_unknown_pattern(self):
+        settings = gen.parse_config({"pattern": "hexagons", "lots": [{"light": 100}]})
+        errors = gen.validate_config(settings)
+        assert any("Unknown pattern" in e for e in errors)
 
-class TestGenerate:
+
+class TestGenerateTriangles:
     def test_generates_triangles(self):
         settings = gen.parse_config(SAMPLE_CONFIG)
-        triangles, boundaries, num_spaces = gen.generate(settings)
-        assert len(triangles) > 0
+        shapes, boundaries, num_spaces = gen.generate(settings)
+        assert len(shapes) > 0
         assert num_spaces == 1
 
     def test_triangle_has_three_vertices(self):
         settings = gen.parse_config(SAMPLE_CONFIG)
-        triangles, _, _ = gen.generate(settings)
-        verts, color = triangles[0]
+        shapes, _, _ = gen.generate(settings)
+        verts, color = shapes[0]
         assert len(verts) == 3
 
     def test_colors_from_palette(self):
         settings = gen.parse_config(SAMPLE_CONFIG)
-        triangles, _, _ = gen.generate(settings)
+        shapes, _, _ = gen.generate(settings)
         valid_colors = set(settings["colors"].keys())
-        for _, color in triangles:
+        for _, color in shapes:
             assert color in valid_colors
 
     def test_boundaries_for_single_lot(self):
         settings = gen.parse_config(SAMPLE_CONFIG)
         _, boundaries, _ = gen.generate(settings)
-        # 4 outer edges, no inner dividers
         assert len(boundaries) == 4
 
     def test_boundaries_for_multiple_lots(self):
@@ -126,7 +158,6 @@ class TestGenerate:
         settings = gen.parse_config(cfg)
         _, boundaries, num_spaces = gen.generate(settings)
         assert num_spaces == 3
-        # 4 outer + 2 inner dividers
         assert len(boundaries) == 6
 
     def test_deterministic_with_same_seed(self):
@@ -136,27 +167,86 @@ class TestGenerate:
         assert t1 == t2
 
 
+class TestGenerateRectangles:
+    def test_generates_rectangles(self):
+        settings = gen.parse_config(RECT_CONFIG)
+        shapes, boundaries, num_spaces = gen.generate(settings)
+        assert len(shapes) > 0
+        assert num_spaces == 1
+
+    def test_rectangle_has_four_vertices(self):
+        settings = gen.parse_config(RECT_CONFIG)
+        shapes, _, _ = gen.generate(settings)
+        verts, _ = shapes[0]
+        assert len(verts) == 4
+
+    def test_square_when_no_side2(self):
+        cfg = {"pattern": "rectangles", "side": 200, "lots": [{"light": 100}]}
+        settings = gen.parse_config(cfg)
+        shapes, _, _ = gen.generate(settings)
+        verts, _ = shapes[0]
+        width = abs(verts[1][0] - verts[0][0])
+        height = abs(verts[2][1] - verts[1][1])
+        assert width == height == 200
+
+    def test_rectangle_dimensions(self):
+        settings = gen.parse_config(RECT_CONFIG)
+        shapes, _, _ = gen.generate(settings)
+        verts, _ = shapes[0]
+        width = abs(verts[1][0] - verts[0][0])
+        height = abs(verts[2][1] - verts[1][1])
+        assert width == 200
+        assert height == 100
+
+    def test_colors_from_palette(self):
+        settings = gen.parse_config(RECT_CONFIG)
+        shapes, _, _ = gen.generate(settings)
+        valid_colors = set(settings["colors"].keys())
+        for _, color in shapes:
+            assert color in valid_colors
+
+    def test_deterministic_with_same_seed(self):
+        settings = gen.parse_config(RECT_CONFIG)
+        r1, _, _ = gen.generate(settings)
+        r2, _, _ = gen.generate(settings)
+        assert r1 == r2
+
+
 class TestRenderSvg:
     def test_valid_svg(self):
         settings = gen.parse_config(SAMPLE_CONFIG)
-        triangles, boundaries, num_spaces = gen.generate(settings)
-        svg = gen.render_svg(settings, triangles, boundaries, num_spaces)
+        shapes, boundaries, num_spaces = gen.generate(settings)
+        svg = gen.render_svg(settings, shapes, boundaries, num_spaces)
         assert svg.startswith("<?xml")
         assert "<svg" in svg
         assert "</svg>" in svg
 
     def test_contains_polygons(self):
         settings = gen.parse_config(SAMPLE_CONFIG)
-        triangles, boundaries, num_spaces = gen.generate(settings)
-        svg = gen.render_svg(settings, triangles, boundaries, num_spaces)
+        shapes, boundaries, num_spaces = gen.generate(settings)
+        svg = gen.render_svg(settings, shapes, boundaries, num_spaces)
         assert "<polygon" in svg
+
+    def test_rectangles_render_svg(self):
+        settings = gen.parse_config(RECT_CONFIG)
+        shapes, boundaries, num_spaces = gen.generate(settings)
+        svg = gen.render_svg(settings, shapes, boundaries, num_spaces)
+        assert "<polygon" in svg
+        assert "</svg>" in svg
 
 
 class TestRenderDxf:
     def test_produces_bytes(self):
         settings = gen.parse_config(SAMPLE_CONFIG)
-        triangles, boundaries, num_spaces = gen.generate(settings)
-        dxf_bytes = gen.render_dxf_bytes(settings, triangles, boundaries, num_spaces)
+        shapes, boundaries, num_spaces = gen.generate(settings)
+        dxf_bytes = gen.render_dxf_bytes(settings, shapes, boundaries, num_spaces)
+        assert isinstance(dxf_bytes, bytes)
+        assert len(dxf_bytes) > 0
+
+    def test_rectangles_produce_bytes(self):
+        settings = gen.parse_config(RECT_CONFIG)
+        shapes, boundaries, num_spaces = gen.generate(settings)
+        dxf_bytes = gen.render_dxf_bytes(settings, shapes, boundaries, num_spaces)
         assert isinstance(dxf_bytes, bytes)
         assert len(dxf_bytes) > 0
 
@@ -199,10 +289,14 @@ class TestApp:
 
     def test_index_has_dimension_fields(self):
         resp = self.client.get("/")
-        assert b"ve-triangle_side" in resp.data
+        assert b"ve-side" in resp.data
         assert b"ve-space_width" in resp.data
         assert b"ve-space_height" in resp.data
         assert b"ve-seed" in resp.data
+
+    def test_index_has_pattern_selector(self):
+        resp = self.client.get("/")
+        assert b"ve-pattern" in resp.data
 
     def test_index_has_github_footer(self):
         resp = self.client.get("/")
@@ -218,6 +312,17 @@ class TestApp:
         data = resp.get_json()
         assert "svg" in data
         assert "<polygon" in data["svg"]
+
+    def test_preview_rectangles(self):
+        resp = self.client.post(
+            "/api/preview",
+            json=RECT_CONFIG,
+            content_type="application/json",
+        )
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert "svg" in data
+        assert "rectangles" in data["info"]
 
     def test_preview_no_json(self):
         resp = self.client.post("/api/preview")

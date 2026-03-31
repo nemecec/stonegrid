@@ -43,8 +43,10 @@ HTML = r"""<!DOCTYPE html>
   .ve-field label { font-size: 11px; color: #888; }
   .ve-field input[type="number"] { width: 100%; padding: 6px 8px; border: 1px solid #ccc;
          border-radius: 4px; font-size: 13px; }
-  .ve-field input[type="number"]:focus { outline: none; border-color: #4a90d9;
+  .ve-field input[type="number"]:focus, .ve-field select:focus { outline: none; border-color: #4a90d9;
          box-shadow: 0 0 0 2px rgba(74,144,217,0.2); }
+  .ve-field select { width: 100%; padding: 6px 8px; border: 1px solid #ccc;
+         border-radius: 4px; font-size: 13px; background: #fff; }
 
   /* Color list */
   .color-list { display: flex; flex-direction: column; gap: 8px; }
@@ -148,16 +150,33 @@ HTML = r"""<!DOCTYPE html>
       <div id="tab-visual" class="tab-content active">
         <div class="ve-scroll">
           <div class="ve-section">
-            <h3>Dimensions</h3>
+            <h3>Pattern</h3>
             <div class="ve-grid">
               <div class="ve-field">
-                <label>Triangle side (mm)</label>
-                <input type="number" id="ve-triangle_side" min="10" step="10">
+                <label>Pattern type</label>
+                <select id="ve-pattern" onchange="onPatternChange()">
+                  <option value="triangles">Triangles</option>
+                  <option value="rectangles">Rectangles</option>
+                </select>
               </div>
               <div class="ve-field">
                 <label>Random seed</label>
                 <input type="number" id="ve-seed" min="0" step="1">
               </div>
+              <div class="ve-field">
+                <label>Side (mm)</label>
+                <input type="number" id="ve-side" min="10" step="10">
+              </div>
+              <div class="ve-field" id="ve-side2-field">
+                <label>Side 2 (mm)</label>
+                <input type="number" id="ve-side2" min="10" step="10">
+              </div>
+            </div>
+          </div>
+
+          <div class="ve-section">
+            <h3>Space</h3>
+            <div class="ve-grid">
               <div class="ve-field">
                 <label>Space width (mm)</label>
                 <input type="number" id="ve-space_width" min="100" step="100">
@@ -252,13 +271,30 @@ function getConfigFromJson() {
 function jsonToVisual() {
   const cfg = getConfigFromJson();
   if (!cfg) return;
-  document.getElementById('ve-triangle_side').value = cfg.triangle_side || 200;
+  document.getElementById('ve-pattern').value = cfg.pattern || 'triangles';
+  document.getElementById('ve-side').value = cfg.side || 200;
+  document.getElementById('ve-side2').value = cfg.side2 || '';
   document.getElementById('ve-space_width').value = cfg.space_width || 2700;
   document.getElementById('ve-space_height').value = cfg.space_height || 5000;
   document.getElementById('ve-seed').value = cfg.seed || 42;
+  onPatternChange();
   renderColors(cfg.colors || {});
   renderLots(cfg.lots || [], cfg.colors || {});
   validateAllLots();
+}
+
+function onPatternChange() {
+  const pattern = document.getElementById('ve-pattern').value;
+  const side2Field = document.getElementById('ve-side2-field');
+  const side2Input = document.getElementById('ve-side2');
+  side2Field.style.display = '';
+  if (pattern === 'triangles') {
+    document.querySelector('#ve-side2-field label').textContent = 'Height (mm)';
+    side2Input.placeholder = 'equilateral';
+  } else {
+    document.querySelector('#ve-side2-field label').textContent = 'Side 2 (mm)';
+    side2Input.placeholder = 'same as Side';
+  }
 }
 
 function visualToJson() {
@@ -267,14 +303,21 @@ function visualToJson() {
 }
 
 function buildConfigFromVisual() {
+  const pattern = document.getElementById('ve-pattern').value;
+  const side2Raw = document.getElementById('ve-side2').value;
   const cfg = {
-    triangle_side: parseInt(document.getElementById('ve-triangle_side').value, 10) || 200,
+    pattern: pattern,
+    side: parseInt(document.getElementById('ve-side').value, 10) || 200,
     space_width: parseInt(document.getElementById('ve-space_width').value, 10) || 2700,
     space_height: parseInt(document.getElementById('ve-space_height').value, 10) || 5000,
     seed: (() => { const v = parseInt(document.getElementById('ve-seed').value, 10); return isNaN(v) ? 42 : v; })(),
     colors: {},
     lots: []
   };
+  if (side2Raw !== '') {
+    const side2 = parseInt(side2Raw, 10);
+    if (!isNaN(side2) && side2 > 0) cfg.side2 = side2;
+  }
 
   // Colors
   document.querySelectorAll('.color-item').forEach(el => {
@@ -767,15 +810,16 @@ def api_preview():
     if errors:
         return jsonify(error='\n'.join(errors))
 
-    triangles, boundaries, num_spaces = gen.generate(settings)
-    svg = gen.render_svg(settings, triangles, boundaries, num_spaces)
+    shapes, boundaries, num_spaces = gen.generate(settings)
+    svg = gen.render_svg(settings, shapes, boundaries, num_spaces)
 
     # Strip XML declaration for inline embedding
     svg_inline = svg.replace('<?xml version="1.0" encoding="UTF-8"?>\n', '')
+    shape_name = settings['pattern']
 
     return jsonify(
         svg=svg_inline,
-        info=f'{len(triangles)} triangles across {num_spaces} lots'
+        info=f'{len(shapes)} {shape_name} across {num_spaces} lots'
     )
 
 
@@ -789,8 +833,8 @@ def api_dxf():
     if errors:
         return jsonify(error='\n'.join(errors)), 400
 
-    triangles, boundaries, num_spaces = gen.generate(settings)
-    dxf_bytes = gen.render_dxf_bytes(settings, triangles, boundaries, num_spaces)
+    shapes, boundaries, num_spaces = gen.generate(settings)
+    dxf_bytes = gen.render_dxf_bytes(settings, shapes, boundaries, num_spaces)
 
     return send_file(
         io.BytesIO(dxf_bytes),

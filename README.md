@@ -1,6 +1,6 @@
 # Stonegrid
 
-A parking lot stone pattern generator that creates triangular mosaic patterns with configurable color gradients per lot.
+A parking lot stone pattern generator that creates mosaic patterns (triangles or rectangles) with configurable color gradients per lot.
 
 **Live demo:** https://stonegrid.onrender.com/
 
@@ -11,7 +11,8 @@ A parking lot stone pattern generator that creates triangular mosaic patterns wi
 - Preview patterns as SVG in a web UI
 - Export to DXF for use in CAD software
 - Shareable URLs that encode the full config
-- Configurable triangle size, space dimensions, and color palette
+- Triangle and rectangle pattern types with configurable dimensions
+- Configurable space dimensions and color palette
 
 ## Quick start
 
@@ -57,7 +58,7 @@ docker run -p 8080:8080 stonegrid
 
 | File | Description |
 |------|-------------|
-| [`parking_generator.py`](parking_generator.py) | Core generation logic — config parsing, validation, triangle generation, SVG and DXF rendering |
+| [`parking_generator.py`](parking_generator.py) | Core generation logic — config parsing, validation, pattern generation, SVG and DXF rendering |
 | [`app.py`](app.py) | Flask web app with preview and DXF download API endpoints |
 | [`generate_parking.py`](generate_parking.py) | CLI wrapper — reads a config file, writes SVG and DXF to disk |
 | [`parking_config.sample.json`](parking_config.sample.json) | Example configuration |
@@ -68,7 +69,9 @@ See [`parking_config.sample.json`](parking_config.sample.json) for an example. K
 
 | Field | Description | Default |
 |-------|-------------|---------|
-| `triangle_side` | Side length of each triangle (mm) | 200 |
+| `pattern` | Pattern type: `"triangles"` or `"rectangles"` | `"triangles"` |
+| `side` | Primary side length (mm) | 200 |
+| `side2` | Second dimension (mm) — triangle height or rectangle height | equilateral height for triangles, same as `side` for rectangles |
 | `space_width` | Width of one parking space (mm) | 2700 |
 | `space_height` | Depth of one parking space (mm) | 5000 |
 | `seed` | Random seed for reproducibility | 42 |

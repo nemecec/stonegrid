@@ -1,5 +1,6 @@
 {
-  "triangle_side": 200,
+  "pattern": "triangles",
+  "side": 200,
   "space_width": 2700,
   "space_height": 5000,
   "seed": 42,
