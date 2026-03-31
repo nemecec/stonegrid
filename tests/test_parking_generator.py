@@ -1,6 +1,5 @@
 """Tests for the parking lot stone pattern generator."""
 
-import json
 import math
 
 import parking_generator as gen
@@ -172,6 +171,42 @@ class TestApp:
         resp = self.client.get("/")
         assert resp.status_code == 200
         assert b"Parking Lot" in resp.data
+
+    def test_index_has_visual_editor_tab(self):
+        resp = self.client.get("/")
+        assert b"Visual Editor" in resp.data
+        assert b"tab-visual" in resp.data
+
+    def test_index_has_json_tab(self):
+        resp = self.client.get("/")
+        assert b'id="config"' in resp.data
+        assert b"tab-json" in resp.data
+
+    def test_index_has_share_button(self):
+        resp = self.client.get("/")
+        assert b"shareBtn" in resp.data
+        assert b"Share Link" in resp.data
+
+    def test_index_has_color_editor(self):
+        resp = self.client.get("/")
+        assert b"ve-colors" in resp.data
+        assert b"Add color" in resp.data
+
+    def test_index_has_lot_editor(self):
+        resp = self.client.get("/")
+        assert b"ve-lots" in resp.data
+        assert b"Add lot" in resp.data
+
+    def test_index_has_dimension_fields(self):
+        resp = self.client.get("/")
+        assert b"ve-triangle_side" in resp.data
+        assert b"ve-space_width" in resp.data
+        assert b"ve-space_height" in resp.data
+        assert b"ve-seed" in resp.data
+
+    def test_index_has_github_footer(self):
+        resp = self.client.get("/")
+        assert b"github.com/nemecec/stonegrid" in resp.data
 
     def test_preview_valid(self):
         resp = self.client.post(
