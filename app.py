@@ -290,6 +290,14 @@ HTML = r"""<!DOCTYPE html>
 let currentConfig = null;
 
 // --- Tab switching ---
+function showTabOnly(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  const idx = tab === 'visual' ? 0 : 1;
+  document.querySelectorAll('.tab')[idx].classList.add('active');
+  document.getElementById('tab-' + tab).classList.add('active');
+}
+
 function switchTab(tab) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
@@ -891,10 +899,17 @@ async function download() {
       document.getElementById('config').value = json;
     } catch (e) {
       setStatus('Failed to load config from URL: ' + e.message, true);
+      showTabOnly('json');
+      return;
     }
   }
   // Populate visual editor from JSON
-  jsonToVisual();
+  try {
+    jsonToVisual();
+  } catch (e) {
+    setStatus('Failed to populate visual editor: ' + e.message + '. Use JSON tab to fix.', true);
+    showTabOnly('json');
+  }
 })();
 
 // Update label RGB display on color change
@@ -931,7 +946,8 @@ def index():
         default_config = f.read()
     goatcounter_site = os.environ.get('GOATCOUNTER_SITE', '')
     resp = make_response(render_template_string(HTML, default_config=default_config, goatcounter_site=goatcounter_site))
-    resp.headers['Cache-Control'] = 'public, max-age=3600'
+    if os.environ.get('RENDER'):
+        resp.headers['Cache-Control'] = 'public, max-age=3600'
     return resp
 
 
