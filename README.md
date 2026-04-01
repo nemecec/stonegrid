@@ -87,6 +87,10 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
+## License
+
+[Apache License 2.0](LICENSE)
+
 ---
 
 Vibe-coded with [Claude Code](https://claude.ai/code)
