@@ -170,28 +170,28 @@ def generate(settings):
     zones = settings['zones']
 
     num_zones = len(zones)
+    total_width = num_zones * zone_width
 
     if pattern == 'rectangles':
         num_rows = int(zone_height / side2) + 1
-        num_cols = int(zone_width / side) + 1
+        num_cols = int(total_width / side) + 2
         vert_fn = _rectangle_vertices
     else:
         num_rows = int(zone_height / side2) + 1
-        num_cols = int(zone_width / (side / 2)) + 1
+        num_cols = int(total_width / (side / 2)) + 2
         vert_fn = _triangle_vertices
 
     all_shapes = []
-    for i, zone_def in enumerate(zones):
-        x_offset = i * zone_width
-        for row in range(num_rows):
-            for col in range(num_cols):
-                verts = vert_fn(col, row, x_offset, 0, side, side2)
-                n = len(verts)
-                cx = sum(v[0] for v in verts) / n
-                cy = sum(v[1] for v in verts) / n
-                if x_offset <= cx <= x_offset + zone_width and 0 <= cy <= zone_height:
-                    color = _pick_color(zone_def, seed, i, col, row, num_rows)
-                    all_shapes.append((verts, color))
+    for row in range(num_rows):
+        for col in range(num_cols):
+            verts = vert_fn(col, row, 0, 0, side, side2)
+            n = len(verts)
+            cx = sum(v[0] for v in verts) / n
+            cy = sum(v[1] for v in verts) / n
+            if 0 <= cx <= total_width and 0 <= cy <= zone_height:
+                zone_index = min(int(cx / zone_width), num_zones - 1)
+                color = _pick_color(zones[zone_index], seed, zone_index, col, row, num_rows)
+                all_shapes.append((verts, color))
 
     boundaries = []
     for i in range(1, num_zones):
@@ -232,11 +232,6 @@ def render_svg(settings, all_shapes, boundaries, num_zones):
         points_str = ' '.join(f'{v[0]:.1f},{total_height - v[1]:.1f}' for v in verts)
         lines.append(f'<polygon points="{points_str}" '
                      f'fill="rgb({r},{g},{b})" stroke="#888" stroke-width="1"/>')
-
-    for (x1, y1, x2, y2) in boundaries:
-        lines.append(f'<line x1="{x1}" y1="{total_height - y1}" '
-                     f'x2="{x2}" y2="{total_height - y2}" '
-                     f'stroke="white" stroke-width="8" stroke-dasharray="100,80"/>')
 
     for i in range(num_zones):
         cx = i * zone_width + zone_width / 2
