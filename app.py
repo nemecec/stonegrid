@@ -49,16 +49,30 @@ HTML = r"""<!DOCTYPE html>
          border-radius: 4px; font-size: 13px; background: #fff; }
 
   /* Color list */
-  .color-list { display: flex; flex-direction: column; gap: 8px; }
+  .color-list { display: flex; flex-direction: column; gap: 6px; }
+  .color-header { display: flex; align-items: center; gap: 8px; padding: 0 8px; font-size: 10px;
+                  color: #aaa; text-transform: uppercase; letter-spacing: 0.3px; }
+  .color-header .ch-swatch { width: 32px; flex-shrink: 0; }
+  .color-header .ch-rgb { width: 84px; flex-shrink: 0; }
+  .color-header .ch-name { flex: 1; }
+  .color-header .ch-layer { width: 110px; flex-shrink: 0; }
+  .color-header .ch-aci { width: 44px; flex-shrink: 0; }
+  .color-header .ch-btn { width: 28px; flex-shrink: 0; }
   .color-item { display: flex; align-items: center; gap: 8px; padding: 8px;
                 background: #fff; border: 1px solid #ddd; border-radius: 6px; }
   .color-swatch { width: 32px; height: 32px; border-radius: 4px; border: 1px solid #ccc;
                   cursor: pointer; flex-shrink: 0; }
   .color-swatch input[type="color"] { opacity: 0; width: 100%; height: 100%; cursor: pointer; }
-  .color-item .color-name { flex: 1; padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px;
-                            font-size: 13px; }
+  .color-meta { font-size: 11px; color: #999; width: 84px; flex-shrink: 0; }
+  .color-item .color-name { flex: 1; padding: 4px 8px; border: 1px solid #ddd;
+                            border-radius: 4px; font-size: 13px; min-width: 0; }
   .color-item .color-name:focus { outline: none; border-color: #4a90d9; }
-  .color-meta { font-size: 11px; color: #999; flex-shrink: 0; }
+  .color-dxf { display: flex; gap: 6px; align-items: center; flex-shrink: 0;
+               padding-left: 8px; border-left: 1px solid #eee; }
+  .color-dxf input { padding: 3px 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 12px; }
+  .color-dxf input:focus { outline: none; border-color: #4a90d9; }
+  .color-dxf .dxf-layer { width: 110px; }
+  .color-dxf .dxf-aci { width: 44px; }
   .btn-sm { padding: 4px 10px; font-size: 12px; border: none; border-radius: 4px;
             cursor: pointer; }
   .btn-add { background: #4a90d9; color: #fff; margin-top: 4px; }
@@ -190,6 +204,14 @@ HTML = r"""<!DOCTYPE html>
 
           <div class="ve-section">
             <h3>Colors</h3>
+            <div class="color-header">
+              <span class="ch-swatch"></span>
+              <span class="ch-rgb">RGB</span>
+              <span class="ch-name">Name</span>
+              <span class="ch-layer">DXF Layer</span>
+              <span class="ch-aci">ACI</span>
+              <span class="ch-btn"></span>
+            </div>
             <div class="color-list" id="ve-colors"></div>
             <button class="btn-sm btn-add" onclick="addColor()">+ Add color</button>
           </div>
@@ -325,8 +347,8 @@ function buildConfigFromVisual() {
     if (!name) return;
     const hex = el.querySelector('input[type="color"]').value;
     const rgb = hexToRgb(hex);
-    const layer = el.dataset.layer || 'STONE_' + name.toUpperCase();
-    const aci = Number(el.dataset.aci) || 7;
+    const layer = el.querySelector('.dxf-layer').value.trim() || 'STONE_' + name.toUpperCase();
+    const aci = Number(el.querySelector('.dxf-aci').value) || 7;
     cfg.colors[name] = { rgb, layer, aci };
   });
 
@@ -356,28 +378,38 @@ function buildConfigFromVisual() {
 }
 
 // --- Render color list ---
+function colorItemHtml(name, hex, rgb, layer, aci) {
+  return '<div class="color-swatch" style="background:' + hex + '">' +
+      '<input type="color" value="' + hex + '" onchange="this.parentElement.style.background=this.value">' +
+    '</div>' +
+    '<span class="color-meta">' + rgb.join(', ') + '</span>' +
+    '<input class="color-name" type="text" value="' + name + '">' +
+    '<div class="color-dxf">' +
+      '<input class="dxf-layer" type="text" value="' + layer + '" placeholder="Layer">' +
+      '<input class="dxf-aci" type="number" min="0" max="255" value="' + aci + '" placeholder="ACI">' +
+    '</div>' +
+    '<button class="btn-sm btn-remove" onclick="this.closest(\'.color-item\').remove()">&#x2715;</button>';
+}
+
+function wireColorEvents(el) {
+  el.querySelector('input[type="color"]').addEventListener('input', function() {
+    const [r, g, b] = hexToRgb(this.value);
+    el.querySelector('.color-meta').textContent = 'RGB ' + r + ', ' + g + ', ' + b;
+  });
+}
+
 function renderColors(colors) {
   const container = document.getElementById('ve-colors');
   container.innerHTML = '';
   for (const [name, info] of Object.entries(colors)) {
     const rgb = info.rgb || [128, 128, 128];
     const hex = rgbToHex(...rgb);
+    const layer = info.layer || 'STONE_' + name.toUpperCase();
+    const aci = info.aci || 7;
     const el = document.createElement('div');
     el.className = 'color-item';
-    el.dataset.layer = info.layer || '';
-    el.dataset.aci = info.aci || 7;
-    el.innerHTML =
-      '<div class="color-swatch" style="background:' + hex + '">' +
-        '<input type="color" value="' + hex + '" onchange="this.parentElement.style.background=this.value">' +
-      '</div>' +
-      '<input class="color-name" type="text" value="' + name + '">' +
-      '<span class="color-meta">RGB ' + rgb.join(', ') + '</span>' +
-      '<button class="btn-sm btn-remove" onclick="this.closest(\'.color-item\').remove()">&#x2715;</button>';
-    // Update meta on color change
-    el.querySelector('input[type="color"]').addEventListener('input', function() {
-      const [r, g, b] = hexToRgb(this.value);
-      el.querySelector('.color-meta').textContent = 'RGB ' + r + ', ' + g + ', ' + b;
-    });
+    el.innerHTML = colorItemHtml(name, hex, rgb, layer, aci);
+    wireColorEvents(el);
     container.appendChild(el);
   }
 }
@@ -387,21 +419,11 @@ function addColor() {
   const idx = container.children.length + 1;
   const name = 'color' + idx;
   const hex = '#808080';
+  const rgb = [128, 128, 128];
   const el = document.createElement('div');
   el.className = 'color-item';
-  el.dataset.layer = 'STONE_' + name.toUpperCase();
-  el.dataset.aci = '7';
-  el.innerHTML =
-    '<div class="color-swatch" style="background:' + hex + '">' +
-      '<input type="color" value="' + hex + '" onchange="this.parentElement.style.background=this.value">' +
-    '</div>' +
-    '<input class="color-name" type="text" value="' + name + '">' +
-    '<span class="color-meta">RGB 128, 128, 128</span>' +
-    '<button class="btn-sm btn-remove" onclick="this.closest(\'.color-item\').remove()">&#x2715;</button>';
-  el.querySelector('input[type="color"]').addEventListener('input', function() {
-    const [r, g, b] = hexToRgb(this.value);
-    el.querySelector('.color-meta').textContent = 'RGB ' + r + ', ' + g + ', ' + b;
-  });
+  el.innerHTML = colorItemHtml(name, hex, rgb, 'STONE_' + name.toUpperCase(), 7);
+  wireColorEvents(el);
   container.appendChild(el);
 }
 
