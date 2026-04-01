@@ -396,6 +396,19 @@ function wireColorEvents(el) {
     const [r, g, b] = hexToRgb(this.value);
     el.querySelector('.color-meta').textContent = r + ', ' + g + ', ' + b;
   });
+  const nameInput = el.querySelector('.color-name');
+  nameInput.dataset.prevName = nameInput.value;
+  nameInput.addEventListener('change', function() {
+    const oldName = this.dataset.prevName;
+    const newName = this.value.trim();
+    if (oldName && newName && oldName !== newName) {
+      document.querySelectorAll('.prop-row[data-color="' + oldName + '"]').forEach(row => {
+        row.dataset.color = newName;
+        row.querySelector('.prop-name').textContent = newName;
+      });
+    }
+    this.dataset.prevName = newName;
+  });
 }
 
 function renderColors(colors) {
