@@ -83,8 +83,6 @@ HTML = r"""<!DOCTYPE html>
   /* Zone list */
   .zone-item { padding: 10px; background: #fff; border: 1px solid #ddd; border-radius: 6px;
               margin-bottom: 8px; transition: border-color 0.2s, box-shadow 0.2s; }
-  .zone-item.has-error { border-color: #e74c3c; box-shadow: 0 0 0 2px rgba(231,76,60,0.15); }
-  .zone-error { font-size: 11px; color: #e74c3c; margin-top: 4px; }
   .zone-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
   .zone-header span { font-weight: 600; font-size: 13px; }
   .zone-toggle { display: flex; gap: 4px; align-items: center; font-size: 12px; color: #666; }
@@ -94,14 +92,16 @@ HTML = r"""<!DOCTYPE html>
   .prop-row { display: flex; align-items: center; gap: 6px; }
   .prop-swatch { width: 16px; height: 16px; border-radius: 3px; border: 1px solid #ccc; flex-shrink: 0; }
   .prop-name { font-size: 12px; flex: 1; }
-  .prop-row input[type="range"] { flex: 2; cursor: pointer; }
-  .prop-row .prop-val { width: 48px; text-align: right; font-size: 12px; font-family: monospace;
+  .prop-row .prop-val { width: 44px; text-align: right; font-size: 12px; font-family: monospace;
                         padding: 2px 4px; border: 1px solid #ddd; border-radius: 3px;
                         -moz-appearance: textfield; }
   .prop-row .prop-val::-webkit-inner-spin-button,
   .prop-row .prop-val::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
   .prop-row .prop-val:focus { outline: none; border-color: #4a90d9; }
-  .prop-pct { font-size: 11px; color: #999; margin-left: 1px; }
+  .prop-pct { font-size: 11px; color: #999; width: 36px; text-align: right; flex-shrink: 0; }
+  .prop-bar { display: flex; height: 12px; border-radius: 3px; overflow: hidden; margin-top: 4px;
+              border: 1px solid #ddd; }
+  .prop-bar-seg { height: 100%; transition: width 0.2s; }
 
   /* JSON editor */
   textarea { width: 100%; height: 480px; font-family: "SF Mono", Monaco, Consolas, monospace;
@@ -302,7 +302,7 @@ function jsonToVisual() {
   onPatternChange();
   renderColors(cfg.colors || {});
   renderZones(cfg.zones || [], cfg.colors || {});
-  validateAllZones();
+  updateAllPercentages();
 }
 
 function onPatternChange() {
@@ -352,23 +352,23 @@ function buildConfigFromVisual() {
     cfg.colors[name] = { rgb, layer, aci };
   });
 
-  // Lots
+  // Zones
   document.querySelectorAll('.zone-item').forEach(el => {
     const isGradient = el.querySelector('.zone-toggle input').checked;
     if (isGradient) {
       const bottom = {};
       const top = {};
       el.querySelectorAll('.prop-row[data-section="bottom"]').forEach(row => {
-        bottom[row.dataset.color] = Number(row.querySelector('input[type="range"]').value);
+        bottom[row.dataset.color] = Number(row.querySelector('.prop-val').value);
       });
       el.querySelectorAll('.prop-row[data-section="top"]').forEach(row => {
-        top[row.dataset.color] = Number(row.querySelector('input[type="range"]').value);
+        top[row.dataset.color] = Number(row.querySelector('.prop-val').value);
       });
       cfg.zones.push({ bottom, top });
     } else {
       const props = {};
       el.querySelectorAll('.prop-row[data-section="flat"]').forEach(row => {
-        props[row.dataset.color] = Number(row.querySelector('input[type="range"]').value);
+        props[row.dataset.color] = Number(row.querySelector('.prop-val').value);
       });
       cfg.zones.push(props);
     }
@@ -394,7 +394,7 @@ function colorItemHtml(name, hex, rgb, layer, aci) {
 function wireColorEvents(el) {
   el.querySelector('input[type="color"]').addEventListener('input', function() {
     const [r, g, b] = hexToRgb(this.value);
-    el.querySelector('.color-meta').textContent = 'RGB ' + r + ', ' + g + ', ' + b;
+    el.querySelector('.color-meta').textContent = r + ', ' + g + ', ' + b;
   });
 }
 
@@ -449,10 +449,9 @@ function makePropRows(colorMap, values, section) {
       '<div class="prop-row" data-color="' + name + '" data-section="' + section + '">' +
         '<div class="prop-swatch" style="background:' + hex + '"></div>' +
         '<span class="prop-name">' + name + '</span>' +
-        '<input type="range" min="0" max="100" value="' + val + '" tabindex="-1" ' +
-          'oninput="syncPropFromSlider(this)">' +
-        '<input type="number" class="prop-val" min="0" max="100" value="' + val + '" ' +
-          'oninput="syncPropFromInput(this)"><span class="prop-pct">%</span>' +
+        '<input type="number" class="prop-val" min="0" step="1" value="' + val + '" ' +
+          'oninput="syncParts(this)">' +
+        '<span class="prop-pct"></span>' +
       '</div>';
   }
   return html;
@@ -507,7 +506,7 @@ function toggleZoneGradient(checkbox) {
   // Collect current values
   const currentVals = {};
   zoneEl.querySelectorAll('.prop-row').forEach(row => {
-    currentVals[row.dataset.color] = Number(row.querySelector('input[type="range"]').value);
+    currentVals[row.dataset.color] = Number(row.querySelector('.prop-val').value);
   });
 
   const propsDiv = zoneEl.querySelector('.zone-proportions');
@@ -529,57 +528,55 @@ function addZone() {
   const defaultVals = {};
   const keys = Object.keys(colors);
   if (keys.length > 0) {
-    defaultVals[keys[0]] = 100;
+    defaultVals[keys[0]] = 1;
     for (let i = 1; i < keys.length; i++) defaultVals[keys[i]] = 0;
   }
   addZoneElement(container, index, false, defaultVals, colors);
 }
 
-function syncPropFromSlider(slider) {
-  slider.parentElement.querySelector('.prop-val').value = slider.value;
-  validateZone(slider.closest('.zone-item'));
-}
-
-function syncPropFromInput(input) {
+function syncParts(input) {
   let v = parseInt(input.value, 10);
   if (isNaN(v)) v = 0;
   if (v < 0) v = 0;
-  if (v > 100) v = 100;
-  input.parentElement.querySelector('input[type="range"]').value = v;
-  validateZone(input.closest('.zone-item'));
+  updatePercentages(input.closest('.zone-item'));
 }
 
-function validateZone(zoneEl) {
+function updatePercentages(zoneEl) {
   if (!zoneEl) return;
   const isGrad = zoneEl.querySelector('.zone-toggle input').checked;
   const sections = isGrad ? ['bottom', 'top'] : ['flat'];
-  let errors = [];
+  const colors = getCurrentColors();
   sections.forEach(section => {
+    const rows = zoneEl.querySelectorAll('.prop-row[data-section="' + section + '"]');
     let total = 0;
-    zoneEl.querySelectorAll('.prop-row[data-section="' + section + '"]').forEach(row => {
-      total += Number(row.querySelector('input[type="range"]').value);
+    rows.forEach(row => { total += Number(row.querySelector('.prop-val').value) || 0; });
+    let barHtml = '';
+    rows.forEach(row => {
+      const val = Number(row.querySelector('.prop-val').value) || 0;
+      const pct = total > 0 ? Math.round(val / total * 100) : 0;
+      row.querySelector('.prop-pct').textContent = pct + '%';
+      const colorName = row.dataset.color;
+      const info = colors[colorName];
+      const hex = info ? rgbToHex(...info.rgb) : '#888';
+      if (pct > 0) barHtml += '<div class="prop-bar-seg" style="width:' + pct + '%;background:' + hex + '"></div>';
     });
-    if (Math.abs(total - 100) > 0.5) {
-      const label = isGrad ? (section.charAt(0).toUpperCase() + section.slice(1) + ': ') : '';
-      errors.push(label + 'proportions sum to ' + total + '%, expected 100%');
+    // Find or create bar for this section
+    let barId = 'bar-' + section;
+    let bar = zoneEl.querySelector('.prop-bar[data-section="' + section + '"]');
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.className = 'prop-bar';
+      bar.dataset.section = section;
+      // Insert after last prop-row of this section
+      const lastRow = rows[rows.length - 1];
+      if (lastRow) lastRow.after(bar);
     }
+    bar.innerHTML = barHtml;
   });
-  zoneEl.classList.toggle('has-error', errors.length > 0);
-  let errDiv = zoneEl.querySelector('.zone-error');
-  if (errors.length > 0) {
-    if (!errDiv) {
-      errDiv = document.createElement('div');
-      errDiv.className = 'zone-error';
-      zoneEl.appendChild(errDiv);
-    }
-    errDiv.innerHTML = errors.join('<br>');
-  } else if (errDiv) {
-    errDiv.remove();
-  }
 }
 
-function validateAllZones() {
-  document.querySelectorAll('.zone-item').forEach(validateZone);
+function updateAllPercentages() {
+  document.querySelectorAll('.zone-item').forEach(updatePercentages);
 }
 
 function renumberZones() {
@@ -830,7 +827,7 @@ def api_preview():
 
     settings, errors = _process_config(cfg)
     if errors:
-        return jsonify(error='\n'.join(errors))
+        return jsonify(error='\n'.join(errors)), 400
 
     shapes, boundaries, num_zones = gen.generate(settings)
     svg = gen.render_svg(settings, shapes, boundaries, num_zones)

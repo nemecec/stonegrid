@@ -76,9 +76,9 @@ See [`config.sample.json`](config.sample.json) for an example. Key fields:
 | `zone_height` | Height of one zone (mm) | 5000 |
 | `seed` | Random seed for reproducibility | 42 |
 | `colors` | Color definitions with RGB, DXF layer, and ACI color | light/middle/dark |
-| `zones` | Array of zone definitions with color proportions | — |
+| `zones` | Array of zone definitions with color parts | — |
 
-Each zone can be either a flat proportion (`{"light": 70, "middle": 20, "dark": 10}`) or a gradient with `bottom` and `top` keys.
+Each zone specifies color parts as relative weights (e.g. `{"light": 3, "dark": 1}` means 75% light, 25% dark). For gradients, use `bottom` and `top` keys to vary the mix from bottom to top edge.
 
 ## Tests
 

@@ -11,28 +11,28 @@
   },
   "zones": [
     {
-      "bottom": {"light": 100, "middle": 0, "dark": 0},
-      "top":    {"light": 20, "middle": 50, "dark": 30}
+      "bottom": {"light": 1, "middle": 0, "dark": 0},
+      "top":    {"light": 2, "middle": 5, "dark": 3}
     },
     {
-      "bottom": {"light": 100, "middle": 0, "dark": 0},
-      "top":    {"light": 15, "middle": 60, "dark": 25}
+      "bottom": {"light": 1, "middle": 0, "dark": 0},
+      "top":    {"light": 3, "middle": 12, "dark": 5}
     },
     {
-      "bottom": {"light": 100, "middle": 0, "dark": 0},
-      "top":    {"light": 10, "middle": 10, "dark": 80}
+      "bottom": {"light": 1, "middle": 0, "dark": 0},
+      "top":    {"light": 1, "middle": 1, "dark": 8}
     },
     {
-      "bottom": {"light": 100, "middle": 0, "dark": 0},
-      "top":    {"light": 60, "middle": 25, "dark": 15}
+      "bottom": {"light": 1, "middle": 0, "dark": 0},
+      "top":    {"light": 12, "middle": 5, "dark": 3}
     },
     {
-      "bottom": {"light": 100, "middle": 0, "dark": 0},
-      "top":    {"light": 10, "middle": 80, "dark": 10}
+      "bottom": {"light": 1, "middle": 0, "dark": 0},
+      "top":    {"light": 1, "middle": 8, "dark": 1}
     },
     {
-      "bottom": {"light": 100, "middle": 0, "dark": 0},
-      "top":    {"light": 25, "middle": 15, "dark": 60}
+      "bottom": {"light": 1, "middle": 0, "dark": 0},
+      "top":    {"light": 5, "middle": 3, "dark": 12}
     }
   ]
 }

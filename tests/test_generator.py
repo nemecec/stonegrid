@@ -18,8 +18,8 @@ SAMPLE_CONFIG = {
     },
     "zones": [
         {
-            "bottom": {"light": 100, "middle": 0, "dark": 0},
-            "top": {"light": 20, "middle": 50, "dark": 30},
+            "bottom": {"light": 1, "middle": 0, "dark": 0},
+            "top": {"light": 2, "middle": 5, "dark": 3},
         }
     ],
 }
@@ -35,7 +35,7 @@ RECT_CONFIG = {
         "light": {"rgb": [200, 200, 200], "layer": "STONE_LIGHT", "aci": 9},
         "dark": {"rgb": [80, 80, 80], "layer": "STONE_DARK", "aci": 251},
     },
-    "zones": [{"light": 60, "dark": 40}],
+    "zones": [{"light": 3, "dark": 2}],
 }
 
 
@@ -95,7 +95,7 @@ class TestValidateConfig:
         assert any("No zones" in e for e in errors)
 
     def test_valid_flat_zone(self):
-        cfg = {"zones": [{"light": 60, "middle": 30, "dark": 10}]}
+        cfg = {"zones": [{"light": 3, "middle": 2, "dark": 1}]}
         settings = gen.parse_config(cfg)
         errors = gen.validate_config(settings)
         assert errors == []
@@ -105,20 +105,32 @@ class TestValidateConfig:
         errors = gen.validate_config(settings)
         assert errors == []
 
-    def test_proportions_not_100(self):
-        cfg = {"zones": [{"light": 50, "middle": 20, "dark": 10}]}
+    def test_any_positive_parts_valid(self):
+        cfg = {"zones": [{"light": 7, "dark": 3}]}
         settings = gen.parse_config(cfg)
         errors = gen.validate_config(settings)
-        assert any("sum to 80" in e for e in errors)
+        assert errors == []
+
+    def test_zero_total_parts_is_error(self):
+        cfg = {"zones": [{"light": 0, "dark": 0}]}
+        settings = gen.parse_config(cfg)
+        errors = gen.validate_config(settings)
+        assert any("positive" in e for e in errors)
+
+    def test_negative_parts_is_error(self):
+        cfg = {"zones": [{"light": 3, "dark": -1}]}
+        settings = gen.parse_config(cfg)
+        errors = gen.validate_config(settings)
+        assert any("negative" in e for e in errors)
 
     def test_unknown_color(self):
-        cfg = {"zones": [{"light": 50, "unknown_color": 50}]}
+        cfg = {"zones": [{"light": 3, "unknown_color": 2}]}
         settings = gen.parse_config(cfg)
         errors = gen.validate_config(settings)
         assert any("unknown color" in e for e in errors)
 
     def test_unknown_pattern(self):
-        settings = gen.parse_config({"pattern": "hexagons", "zones": [{"light": 100}]})
+        settings = gen.parse_config({"pattern": "hexagons", "zones": [{"light": 1}]})
         errors = gen.validate_config(settings)
         assert any("Unknown pattern" in e for e in errors)
 
@@ -151,9 +163,9 @@ class TestGenerateTriangles:
     def test_boundaries_for_multiple_zones(self):
         cfg = dict(SAMPLE_CONFIG)
         cfg["zones"] = [
-            {"light": 100, "middle": 0, "dark": 0},
-            {"light": 0, "middle": 100, "dark": 0},
-            {"light": 0, "middle": 0, "dark": 100},
+            {"light": 1, "middle": 0, "dark": 0},
+            {"light": 0, "middle": 1, "dark": 0},
+            {"light": 0, "middle": 0, "dark": 1},
         ]
         settings = gen.parse_config(cfg)
         _, boundaries, num_zones = gen.generate(settings)
@@ -181,7 +193,7 @@ class TestGenerateRectangles:
         assert len(verts) == 4
 
     def test_square_when_no_side2(self):
-        cfg = {"pattern": "rectangles", "side": 200, "zones": [{"light": 100}]}
+        cfg = {"pattern": "rectangles", "side": 200, "zones": [{"light": 1}]}
         settings = gen.parse_config(cfg)
         shapes, _, _ = gen.generate(settings)
         verts, _ = shapes[0]
@@ -334,8 +346,13 @@ class TestApp:
             json={"zones": []},
             content_type="application/json",
         )
+        assert resp.status_code == 400
         data = resp.get_json()
         assert "error" in data
+
+    def test_dxf_no_json(self):
+        resp = self.client.post("/api/dxf")
+        assert resp.status_code in (400, 415)
 
     def test_dxf_download(self):
         resp = self.client.post(
@@ -349,7 +366,7 @@ class TestApp:
     def test_dxf_invalid_config(self):
         resp = self.client.post(
             "/api/dxf",
-            json={"zones": [{"light": 50, "dark": 10}]},
+            json={"zones": [{"light": 3, "dark": -1}]},
             content_type="application/json",
         )
         assert resp.status_code == 400

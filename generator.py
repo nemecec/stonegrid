@@ -82,20 +82,22 @@ def validate_config(settings):
         return errors
 
     for i, zone in enumerate(zones):
-        prop_sets = []
+        part_sets = []
         if _is_gradient(zone):
-            prop_sets.append((zone['bottom'], f'Zone {i + 1} bottom'))
-            prop_sets.append((zone['top'], f'Zone {i + 1} top'))
+            part_sets.append((zone['bottom'], f'Zone {i + 1} bottom'))
+            part_sets.append((zone['top'], f'Zone {i + 1} top'))
         else:
-            prop_sets.append((zone, f'Zone {i + 1}'))
+            part_sets.append((zone, f'Zone {i + 1}'))
 
-        for props, label in prop_sets:
-            total = sum(props.values())
-            if abs(total - 100) > 0.5:
-                errors.append(f'{label}: proportions sum to {total}, expected 100')
-            for key in props:
+        for parts, label in part_sets:
+            total = sum(parts.values())
+            if total <= 0:
+                errors.append(f'{label}: parts must sum to a positive number')
+            for key in parts:
                 if key not in colors:
                     errors.append(f'{label}: unknown color "{key}" (available: {list(colors.keys())})')
+                if parts[key] < 0:
+                    errors.append(f'{label}: "{key}" has negative parts')
 
     return errors
 
@@ -142,18 +144,24 @@ def _pick_color(zone_def, seed, zone_index, col, row, num_rows):
     t = row / max(num_rows - 1, 1)
     all_keys = list(dict.fromkeys(list(bottom.keys()) + list(top.keys())))
 
+    # Interpolate parts between bottom and top
     interpolated = {}
     for key in all_keys:
         b = bottom.get(key, 0)
         tp = top.get(key, 0)
         interpolated[key] = b + (tp - b) * t
 
+    # Normalize parts to percentages
+    total = sum(interpolated.values())
+    if total <= 0:
+        return all_keys[0] if all_keys else None
+
     rng = random.Random(seed + zone_index * 10000 + row * 1000 + col)
-    r = rng.random() * 100
+    r = rng.random() * total
 
     cumulative = 0
-    for color_key, pct in interpolated.items():
-        cumulative += pct
+    for color_key, parts in interpolated.items():
+        cumulative += parts
         if r < cumulative:
             return color_key
     return color_key
