@@ -56,6 +56,16 @@ def parse_config(cfg):
 
     zones = cfg.get('zones', [])
 
+    labels_cfg = cfg.get('labels', {})
+    labels = {
+        'show': labels_cfg.get('show', True),
+        'color': tuple(labels_cfg.get('color', [255, 0, 0])),
+        'opacity': labels_cfg.get('opacity', 0.5),
+        'size': labels_cfg.get('size', 600),
+        'layer': labels_cfg.get('layer', 'LABELS'),
+        'aci': labels_cfg.get('aci', 7),
+    }
+
     return {
         'pattern': pattern,
         'side': side,
@@ -65,6 +75,7 @@ def parse_config(cfg):
         'seed': seed,
         'colors': colors,
         'zones': zones,
+        'labels': labels,
     }
 
 
@@ -241,13 +252,18 @@ def render_svg(settings, all_shapes, boundaries, num_zones):
         lines.append(f'<polygon points="{points_str}" '
                      f'fill="rgb({r},{g},{b})" stroke="#888" stroke-width="1"/>')
 
-    for i in range(num_zones):
-        cx = i * zone_width + zone_width / 2
-        cy = zone_height / 2
-        lines.append(f'<text x="{cx}" y="{total_height - cy}" '
-                     f'font-size="300" fill="white" fill-opacity="0.4" '
-                     f'text-anchor="middle" dominant-baseline="middle" '
-                     f'font-family="Arial" font-weight="bold">{i + 1}</text>')
+    labels = settings.get('labels', {})
+    if labels.get('show', True):
+        lr, lg, lb = labels.get('color', (255, 0, 0))
+        opacity = labels.get('opacity', 0.5)
+        size = labels.get('size', 600)
+        for i in range(num_zones):
+            cx = i * zone_width + zone_width / 2
+            cy = zone_height / 2
+            lines.append(f'<text x="{cx}" y="{total_height - cy}" '
+                         f'font-size="{size}" fill="rgb({lr},{lg},{lb})" fill-opacity="{opacity}" '
+                         f'text-anchor="middle" dominant-baseline="middle" '
+                         f'font-family="Arial" font-weight="bold">{i + 1}</text>')
 
     lines.append('</svg>')
     return '\n'.join(lines)
@@ -258,6 +274,7 @@ def render_dxf_bytes(settings, all_shapes, boundaries, num_zones):
     colors = settings['colors']
     zone_width = settings['zone_width']
     zone_height = settings['zone_height']
+    labels = settings.get('labels', {})
 
     doc = ezdxf.new('R2010')
     msp = doc.modelspace()
@@ -265,7 +282,9 @@ def render_dxf_bytes(settings, all_shapes, boundaries, num_zones):
     for key, info in colors.items():
         doc.layers.add(info['layer'], color=info['aci'])
     doc.layers.add('BOUNDARIES', color=7)
-    doc.layers.add('LABELS', color=7)
+    label_layer = labels.get('layer', 'LABELS')
+    label_aci = labels.get('aci', 7)
+    doc.layers.add(label_layer, color=label_aci)
 
     for verts, color_key in all_shapes:
         info = colors[color_key]
@@ -278,12 +297,13 @@ def render_dxf_bytes(settings, all_shapes, boundaries, num_zones):
     for (x1, y1, x2, y2) in boundaries:
         msp.add_line((x1, y1), (x2, y2), dxfattribs={'layer': 'BOUNDARIES', 'linetype': 'DASHED'})
 
-    for i in range(num_zones):
-        cx = i * zone_width + zone_width / 2
-        cy = zone_height / 2
-        msp.add_text(str(i + 1), height=300,
-                     dxfattribs={'layer': 'LABELS', 'color': 7}
-                     ).set_placement((cx, cy), align=TextEntityAlignment.MIDDLE_CENTER)
+    if labels.get('show', True):
+        for i in range(num_zones):
+            cx = i * zone_width + zone_width / 2
+            cy = zone_height / 2
+            msp.add_text(str(i + 1), height=labels.get('size', 600),
+                         dxfattribs={'layer': label_layer, 'color': label_aci}
+                         ).set_placement((cx, cy), align=TextEntityAlignment.MIDDLE_CENTER)
 
     buf = io.StringIO()
     doc.write(buf)

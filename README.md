@@ -77,8 +77,22 @@ See [`config.sample.json`](config.sample.json) for an example. Key fields:
 | `seed` | Random seed for reproducibility | 42 |
 | `colors` | Color definitions with RGB, DXF layer, and ACI color | light/middle/dark |
 | `zones` | Array of zone definitions with color parts | — |
+| `labels` | Zone label settings (see below) | show, red, opacity 0.5, size 600 |
 
 Each zone specifies color parts as relative weights (e.g. `{"light": 3, "dark": 1}` means 75% light, 25% dark). For gradients, use `bottom` and `top` keys to vary the mix from bottom to top edge.
+
+### Labels
+
+Zone numbers can be shown on the preview and in DXF output. Configure via the `labels` object:
+
+| Field | Description | Default |
+|-------|-------------|---------|
+| `show` | Show zone numbers | `true` |
+| `color` | RGB color for SVG preview | `[255, 0, 0]` |
+| `opacity` | Opacity for SVG preview (0–1) | `0.5` |
+| `size` | Font size (in mm, used for both SVG and DXF) | `600` |
+| `layer` | DXF layer name | `"LABELS"` |
+| `aci` | DXF ACI color index | `7` |
 
 ## Tests
 

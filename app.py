@@ -52,18 +52,18 @@ HTML = r"""<!DOCTYPE html>
   .color-list { display: flex; flex-direction: column; gap: 6px; }
   .color-header { display: flex; align-items: center; gap: 8px; padding: 0 8px; font-size: 10px;
                   color: #aaa; text-transform: uppercase; letter-spacing: 0.3px; }
-  .color-header .ch-swatch { width: 32px; flex-shrink: 0; }
-  .color-header .ch-rgb { width: 84px; flex-shrink: 0; }
+  .color-header .ch-rgb { width: 124px; flex-shrink: 0; }
   .color-header .ch-name { flex: 1; }
   .color-header .ch-layer { width: 110px; flex-shrink: 0; }
   .color-header .ch-aci { width: 44px; flex-shrink: 0; }
   .color-header .ch-btn { width: 28px; flex-shrink: 0; }
   .color-item { display: flex; align-items: center; gap: 8px; padding: 8px;
                 background: #fff; border: 1px solid #ddd; border-radius: 6px; }
-  .color-swatch { width: 32px; height: 32px; border-radius: 4px; border: 1px solid #ccc;
+  .color-rgb-col { display: flex; align-items: center; gap: 6px; width: 124px; flex-shrink: 0; }
+  .color-swatch { width: 28px; height: 28px; border-radius: 4px; border: 1px solid #ccc;
                   cursor: pointer; flex-shrink: 0; }
   .color-swatch input[type="color"] { opacity: 0; width: 100%; height: 100%; cursor: pointer; }
-  .color-meta { font-size: 11px; color: #999; width: 84px; flex-shrink: 0; }
+  .color-meta { font-size: 11px; color: #999; }
   .color-item .color-name { flex: 1; padding: 4px 8px; border: 1px solid #ddd;
                             border-radius: 4px; font-size: 13px; min-width: 0; }
   .color-item .color-name:focus { outline: none; border-color: #4a90d9; }
@@ -203,10 +203,39 @@ HTML = r"""<!DOCTYPE html>
           </div>
 
           <div class="ve-section">
+            <h3>Zone Labels</h3>
+            <div style="display:flex;gap:8px;font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:0.3px;padding:0 0 2px 0">
+              <span style="width:36px">Show</span>
+              <span style="width:112px">Color (RGB)</span>
+              <span style="width:50px">Opacity</span>
+              <span style="width:55px">Size</span>
+              <span style="width:100px">DXF Layer</span>
+              <span style="width:44px">ACI</span>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <input type="checkbox" id="ve-labels-show" checked style="width:36px;cursor:pointer">
+              <div style="display:flex;align-items:center;gap:6px;width:112px">
+                <div class="color-swatch" id="ve-labels-swatch" style="width:22px;height:22px;background:#ff0000">
+                  <input type="color" id="ve-labels-color" value="#ff0000"
+                    onchange="this.parentElement.style.background=this.value">
+                </div>
+                <span id="ve-labels-rgb" style="font-size:11px;color:#999">255, 0, 0</span>
+              </div>
+              <input type="number" id="ve-labels-opacity" min="0" max="1" step="0.1" value="0.5"
+                style="width:50px;padding:3px 4px;border:1px solid #ccc;border-radius:3px;font-size:12px">
+              <input type="number" id="ve-labels-size" min="10" step="10" value="600"
+                style="width:55px;padding:3px 4px;border:1px solid #ccc;border-radius:3px;font-size:12px">
+              <input type="text" id="ve-labels-layer" value="LABELS" placeholder="Layer"
+                style="width:100px;padding:3px 6px;border:1px solid #ddd;border-radius:3px;font-size:12px">
+              <input type="number" id="ve-labels-aci" min="0" max="255" value="7" placeholder="ACI"
+                style="width:44px;padding:3px 6px;border:1px solid #ddd;border-radius:3px;font-size:12px">
+            </div>
+          </div>
+
+          <div class="ve-section">
             <h3>Colors</h3>
             <div class="color-header">
-              <span class="ch-swatch"></span>
-              <span class="ch-rgb">RGB</span>
+              <span class="ch-rgb">Color (RGB)</span>
               <span class="ch-name">Name</span>
               <span class="ch-layer">DXF Layer</span>
               <span class="ch-aci">ACI</span>
@@ -225,7 +254,7 @@ HTML = r"""<!DOCTYPE html>
       </div>
 
       <div id="tab-json" class="tab-content">
-        <textarea id="config" spellcheck="false">{{ default_config }}</textarea>
+        <textarea id="config" spellcheck="false">{{ default_config | safe }}</textarea>
       </div>
 
       <div class="buttons">
@@ -292,7 +321,10 @@ function getConfigFromJson() {
 
 function jsonToVisual() {
   const cfg = getConfigFromJson();
-  if (!cfg) return;
+  if (!cfg) {
+    setStatus('Failed to parse JSON config', true);
+    return;
+  }
   document.getElementById('ve-pattern').value = cfg.pattern || 'triangles';
   document.getElementById('ve-side').value = cfg.side || 200;
   document.getElementById('ve-side2').value = cfg.side2 || '';
@@ -300,6 +332,18 @@ function jsonToVisual() {
   document.getElementById('ve-zone_height').value = cfg.zone_height || 5000;
   document.getElementById('ve-seed').value = cfg.seed || 42;
   onPatternChange();
+  // Labels
+  const labels = cfg.labels || {};
+  document.getElementById('ve-labels-show').checked = labels.show !== false;
+  const lc = labels.color || [255, 0, 0];
+  const lhex = rgbToHex(lc[0], lc[1], lc[2]);
+  document.getElementById('ve-labels-color').value = lhex;
+  document.getElementById('ve-labels-swatch').style.background = lhex;
+  document.getElementById('ve-labels-rgb').textContent = lc.join(', ');
+  document.getElementById('ve-labels-opacity').value = labels.opacity != null ? labels.opacity : 0.5;
+  document.getElementById('ve-labels-size').value = labels.size || 600;
+  document.getElementById('ve-labels-layer').value = labels.layer || 'LABELS';
+  document.getElementById('ve-labels-aci').value = labels.aci != null ? labels.aci : 7;
   renderColors(cfg.colors || {});
   renderZones(cfg.zones || [], cfg.colors || {});
   updateAllPercentages();
@@ -333,6 +377,14 @@ function buildConfigFromVisual() {
     zone_width: parseInt(document.getElementById('ve-zone_width').value, 10) || 2700,
     zone_height: parseInt(document.getElementById('ve-zone_height').value, 10) || 5000,
     seed: (() => { const v = parseInt(document.getElementById('ve-seed').value, 10); return isNaN(v) ? 42 : v; })(),
+    labels: {
+      show: document.getElementById('ve-labels-show').checked,
+      color: hexToRgb(document.getElementById('ve-labels-color').value),
+      opacity: parseFloat(document.getElementById('ve-labels-opacity').value) || 0.5,
+      size: parseInt(document.getElementById('ve-labels-size').value, 10) || 600,
+      layer: document.getElementById('ve-labels-layer').value.trim() || 'LABELS',
+      aci: parseInt(document.getElementById('ve-labels-aci').value, 10) || 7
+    },
     colors: {},
     zones: []
   };
@@ -379,22 +431,32 @@ function buildConfigFromVisual() {
 
 // --- Render color list ---
 function colorItemHtml(name, hex, rgb, layer, aci) {
-  return '<div class="color-swatch" style="background:' + hex + '">' +
-      '<input type="color" value="' + hex + '" onchange="this.parentElement.style.background=this.value">' +
+  return '<div class="color-rgb-col">' +
+      '<div class="color-swatch" style="background:' + hex + '">' +
+        '<input type="color" value="' + hex + '" onchange="this.parentElement.style.background=this.value">' +
+      '</div>' +
+      '<span class="color-meta">' + rgb.join(', ') + '</span>' +
     '</div>' +
-    '<span class="color-meta">' + rgb.join(', ') + '</span>' +
     '<input class="color-name" type="text" value="' + name + '">' +
     '<div class="color-dxf">' +
       '<input class="dxf-layer" type="text" value="' + layer + '" placeholder="Layer">' +
       '<input class="dxf-aci" type="number" min="0" max="255" value="' + aci + '" placeholder="ACI">' +
     '</div>' +
-    '<button class="btn-sm btn-remove" onclick="this.closest(\'.color-item\').remove()">&#x2715;</button>';
+    '<button class="btn-sm btn-remove" onclick="this.closest(\'.color-item\').remove();refreshZoneColors()">&#x2715;</button>';
 }
 
 function wireColorEvents(el) {
   el.querySelector('input[type="color"]').addEventListener('input', function() {
     const [r, g, b] = hexToRgb(this.value);
     el.querySelector('.color-meta').textContent = r + ', ' + g + ', ' + b;
+    // Update zone swatches and proportion bars
+    const name = el.querySelector('.color-name').value.trim();
+    if (name) {
+      document.querySelectorAll('.prop-row[data-color="' + name + '"] .prop-swatch').forEach(sw => {
+        sw.style.background = this.value;
+      });
+      document.querySelectorAll('.zone-item').forEach(updatePercentages);
+    }
   });
   const nameInput = el.querySelector('.color-name');
   nameInput.dataset.prevName = nameInput.value;
@@ -438,6 +500,39 @@ function addColor() {
   el.innerHTML = colorItemHtml(name, hex, rgb, 'STONE_' + name.toUpperCase(), 7);
   wireColorEvents(el);
   container.appendChild(el);
+  refreshZoneColors();
+}
+
+function refreshZoneColors() {
+  const colors = getCurrentColors();
+  document.querySelectorAll('.zone-item').forEach(zoneEl => {
+    const isGrad = zoneEl.querySelector('.zone-toggle input').checked;
+    const sections = isGrad ? ['bottom', 'top'] : ['flat'];
+    sections.forEach(section => {
+      // Collect existing values
+      const existing = {};
+      zoneEl.querySelectorAll('.prop-row[data-section="' + section + '"]').forEach(row => {
+        existing[row.dataset.color] = Number(row.querySelector('.prop-val').value) || 0;
+      });
+      // Rebuild with current colors, preserving values
+      const propsHtml = makePropRows(colors, existing, section);
+      // Find the label and bar for this section, replace rows between them
+      const rows = zoneEl.querySelectorAll('.prop-row[data-section="' + section + '"]');
+      const bar = zoneEl.querySelector('.prop-bar[data-section="' + section + '"]');
+      // Remove old rows
+      rows.forEach(r => r.remove());
+      // Insert new rows before bar or at end of proportions div
+      const temp = document.createElement('div');
+      temp.innerHTML = propsHtml;
+      const insertBefore = bar || (section === 'top' ? null : zoneEl.querySelector('.zone-gradient-label + .zone-gradient-label') || null);
+      const parent = zoneEl.querySelector('.zone-proportions');
+      while (temp.firstChild) {
+        if (bar) parent.insertBefore(temp.firstChild, bar);
+        else parent.appendChild(temp.firstChild);
+      }
+    });
+    updatePercentages(zoneEl);
+  });
 }
 
 // --- Render zone list ---
@@ -801,6 +896,12 @@ async function download() {
   // Populate visual editor from JSON
   jsonToVisual();
 })();
+
+// Update label RGB display on color change
+document.getElementById('ve-labels-color').addEventListener('input', function() {
+  const [r, g, b] = hexToRgb(this.value);
+  document.getElementById('ve-labels-rgb').textContent = r + ', ' + g + ', ' + b;
+});
 
 // Allow Tab key in JSON textarea
 document.getElementById('config').addEventListener('keydown', function(e) {
