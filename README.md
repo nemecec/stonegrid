@@ -86,3 +86,9 @@ Each zone can be either a flat proportion (`{"light": 70, "middle": 20, "dark": 
 pip install -r requirements-dev.txt
 pytest
 ```
+
+---
+
+Vibe-coded with [Claude Code](https://claude.ai/code)
+
+Dedicated to Elina ❤️
