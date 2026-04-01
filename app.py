@@ -3,7 +3,7 @@
 import io
 import os
 
-from flask import Flask, request, jsonify, send_file, render_template_string
+from flask import Flask, request, jsonify, send_file, render_template_string, make_response
 import generator as gen
 
 app = Flask(__name__)
@@ -816,7 +816,9 @@ def index():
     with open(config_path) as f:
         default_config = f.read()
     goatcounter_site = os.environ.get('GOATCOUNTER_SITE', '')
-    return render_template_string(HTML, default_config=default_config, goatcounter_site=goatcounter_site)
+    resp = make_response(render_template_string(HTML, default_config=default_config, goatcounter_site=goatcounter_site))
+    resp.headers['Cache-Control'] = 'public, max-age=3600'
+    return resp
 
 
 @app.route('/api/preview', methods=['POST'])
